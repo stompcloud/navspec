@@ -1,6 +1,12 @@
 # AGENTS.md
 
-Read `DESIGN.md` before making architectural changes.
+Read `docs/design.md` before making architectural changes.
+
+For work on the Expo Router target, follow
+`docs/expo-router-generator-todo.md`. Treat it as the ordered implementation
+backlog: keep completed items checked, add newly discovered work in the
+appropriate phase, and move durable architectural decisions into
+`docs/design.md` rather than expanding the TODO with design prose.
 
 ## Language
 
@@ -37,4 +43,3 @@ When adding logic:
 - localization/styling → presentation layer
 
 Add regression tests for bugs and unit tests for core semantic behavior.
-

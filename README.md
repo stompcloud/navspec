@@ -4,6 +4,11 @@ NavSpec is a small compiler for declarative application navigation. It parses a 
 
 This repository currently contains the stable core milestone. Framework-specific application and test generators are intentionally deferred.
 
+## Project documentation
+
+- [`docs/design.md`](docs/design.md) contains the durable architecture and design constraints.
+- [`docs/expo-router-generator-todo.md`](docs/expo-router-generator-todo.md) is the ordered implementation backlog for the Expo Router target.
+
 ## Requirements
 
 - Node.js 20 or newer
