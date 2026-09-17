@@ -74,4 +74,26 @@ export interface CompileResult {
 export interface NavSpecConfig {
   readonly input: string;
   readonly root: string;
+  readonly outputs: NavSpecOutputsConfig;
+}
+
+export interface ExpoRouterOutputConfig {
+  readonly generatedDirectory: string;
+  readonly routesDirectory?: string;
+  readonly publicPath: string;
+}
+
+export interface NavSpecOutputsConfig {
+  readonly expoRouter?: ExpoRouterOutputConfig;
+}
+
+export interface GeneratedArtifact {
+  readonly path: string;
+  readonly contents: string;
+  readonly ownership: "generated";
+}
+
+export interface TargetGenerationResult {
+  readonly artifacts: readonly GeneratedArtifact[];
+  readonly diagnostics: readonly Diagnostic[];
 }

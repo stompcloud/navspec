@@ -1,13 +1,25 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import { compileNavigation } from "./compiler.js";
-import { defaultConfig, parseConfig } from "./config.js";
+import {
+  defaultConfig,
+  defaultExpoRouterOutput,
+  parseConfig,
+} from "./config.js";
 import { formatDiagnostic, hasErrors } from "./diagnostics.js";
+import { generateExpoRouter } from "./expo-router-generator.js";
+import { initializeExpoRouterProject } from "./expo-project.js";
+import {
+  generatedArtifactsAreCurrent,
+  materializeGeneratedArtifacts,
+} from "./generated-output.js";
 import { planNavigationTests } from "./test-planner.js";
+import type { NavSpecConfig } from "./types.js";
 
 const usage = `NavSpec 0.1.0
 
@@ -15,11 +27,17 @@ Usage:
   navspec validate [nav.yaml] [--config path] [--root node-id] [--warnings-as-errors]
   navspec inspect [nav.yaml] [--config path] [--root node-id]
   navspec test-plan [nav.yaml] [--config path] [--root node-id]
+  navspec init [--config path] [--target expo-router]
+  navspec generate [nav.yaml] [--config path] [--root node-id] [--target expo-router]
+  navspec check [nav.yaml] [--config path] [--root node-id] [--target expo-router]
 
 Commands:
   validate   Parse and validate a navigation specification.
   inspect    Print the normalized canonical IR as JSON.
   test-plan  Print the framework-neutral navigation test plan as JSON.
+  init       Add the stable Expo Router integration scaffold to a project.
+  generate   Generate configured target output atomically.
+  check      Verify generated output is current without changing files.
 
 When no input is given, NavSpec reads navspec.config.yaml if present, then defaults
 to nav.yaml. The configured root defaults to "root".`;
@@ -29,6 +47,7 @@ interface CliArguments {
   input?: string;
   configPath?: string;
   root?: string;
+  target?: string;
   warningsAsErrors: boolean;
 }
 
@@ -37,16 +56,22 @@ function parseArguments(argv: readonly string[]): CliArguments {
   let input: string | undefined;
   let configPath: string | undefined;
   let root: string | undefined;
+  let target: string | undefined;
   let warningsAsErrors = false;
 
   for (let index = 1; index < argv.length; index += 1) {
     const argument = argv[index]!;
-    if (argument === "--config" || argument === "--root") {
+    if (
+      argument === "--config" ||
+      argument === "--root" ||
+      argument === "--target"
+    ) {
       const value = argv[index + 1];
       if (value === undefined || value.startsWith("--"))
         throw new Error(`${argument} requires a value.`);
       if (argument === "--config") configPath = value;
-      else root = value;
+      else if (argument === "--root") root = value;
+      else target = value;
       index += 1;
     } else if (argument === "--warnings-as-errors") {
       warningsAsErrors = true;
@@ -65,15 +90,18 @@ function parseArguments(argv: readonly string[]): CliArguments {
     ...(input === undefined ? {} : { input }),
     ...(configPath === undefined ? {} : { configPath }),
     ...(root === undefined ? {} : { root }),
+    ...(target === undefined ? {} : { target }),
     warningsAsErrors,
   };
 }
 
-function readProject(arguments_: CliArguments): {
-  source: string;
-  sourcePath: string;
-  root: string;
-} {
+interface LoadedConfiguration {
+  readonly config: NavSpecConfig;
+  readonly configPath?: string;
+  readonly baseDirectory: string;
+}
+
+function readConfiguration(arguments_: CliArguments): LoadedConfiguration {
   const cwd = process.cwd();
   const explicitConfigPath =
     arguments_.configPath === undefined
@@ -83,21 +111,34 @@ function readProject(arguments_: CliArguments): {
   const configPath =
     explicitConfigPath ??
     (existsSync(automaticConfigPath) ? automaticConfigPath : undefined);
-  const config =
-    configPath === undefined
-      ? defaultConfig
-      : parseConfig(readFileSync(configPath, "utf8"));
+  return {
+    config:
+      configPath === undefined
+        ? defaultConfig
+        : parseConfig(readFileSync(configPath, "utf8")),
+    ...(configPath === undefined ? {} : { configPath }),
+    baseDirectory: configPath === undefined ? cwd : dirname(configPath),
+  };
+}
+
+function readProject(arguments_: CliArguments): {
+  source: string;
+  sourcePath: string;
+  root: string;
+  configuration: LoadedConfiguration;
+} {
+  const cwd = process.cwd();
+  const configuration = readConfiguration(arguments_);
+  const { config } = configuration;
   const inputPath =
     arguments_.input === undefined
-      ? resolve(
-          configPath === undefined ? cwd : dirname(configPath),
-          config.input,
-        )
+      ? resolve(configuration.baseDirectory, config.input)
       : resolve(cwd, arguments_.input);
   return {
     source: readFileSync(inputPath, "utf8"),
     sourcePath: relative(cwd, inputPath) || inputPath,
     root: arguments_.root ?? config.root,
+    configuration,
   };
 }
 
@@ -120,11 +161,56 @@ export function runCli(argv: readonly string[]): number {
     process.stdout.write(`${usage}\n`);
     return 0;
   }
-  if (!new Set(["validate", "inspect", "test-plan"]).has(arguments_.command)) {
+  if (
+    !new Set([
+      "validate",
+      "inspect",
+      "test-plan",
+      "init",
+      "generate",
+      "check",
+    ]).has(arguments_.command)
+  ) {
     process.stderr.write(
       `Unknown command "${arguments_.command}".\n\n${usage}\n`,
     );
     return 2;
+  }
+
+  if (arguments_.target !== undefined && arguments_.target !== "expo-router") {
+    process.stderr.write(
+      `Unsupported target "${arguments_.target}". Supported target: expo-router.\n`,
+    );
+    return 2;
+  }
+
+  if (arguments_.command === "init") {
+    try {
+      const configuration = readConfiguration(arguments_);
+      const expo =
+        configuration.config.outputs.expoRouter ?? defaultExpoRouterOutput;
+      const initialized = initializeExpoRouterProject(
+        process.cwd(),
+        expo,
+        configuration.baseDirectory,
+      );
+      for (const warning of initialized.warnings) {
+        process.stderr.write(`WARNING EXPO101: ${warning}\n`);
+      }
+      const created = initialized.created.length;
+      process.stdout.write(
+        `Initialized Expo Router mount ${expo.publicPath}: ${created} file${created === 1 ? "" : "s"} created.\n`,
+      );
+      process.stdout.write(
+        `Link or push to ${expo.publicPath} from application-owned navigation.\n`,
+      );
+      return 0;
+    } catch (error) {
+      process.stderr.write(
+        `${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return 1;
+    }
   }
 
   let project: ReturnType<typeof readProject>;
@@ -154,6 +240,49 @@ export function runCli(argv: readonly string[]): number {
       ));
   if (failed || result.ir === undefined) return 1;
 
+  if (arguments_.command === "generate" || arguments_.command === "check") {
+    const expo =
+      project.configuration.config.outputs.expoRouter ??
+      defaultExpoRouterOutput;
+    const generated = generateExpoRouter(result.ir, {
+      publicPath: expo.publicPath,
+      sourcePath: project.sourcePath,
+      sourceHash: createHash("sha256").update(project.source).digest("hex"),
+    });
+    if (generated.diagnostics.length > 0) {
+      process.stderr.write(
+        `${generated.diagnostics.map((diagnostic) => formatDiagnostic(diagnostic)).join("\n\n")}\n`,
+      );
+    }
+    if (hasErrors(generated.diagnostics)) return 1;
+    const outputDirectory = resolve(
+      project.configuration.baseDirectory,
+      expo.generatedDirectory,
+    );
+    if (arguments_.command === "check") {
+      if (!generatedArtifactsAreCurrent(outputDirectory, generated.artifacts)) {
+        process.stderr.write(
+          `Generated Expo Router output is missing or stale at "${relative(process.cwd(), outputDirectory)}".\n`,
+        );
+        return 1;
+      }
+      process.stdout.write("Generated Expo Router output is current.\n");
+      return 0;
+    }
+    try {
+      materializeGeneratedArtifacts(outputDirectory, generated.artifacts);
+    } catch (error) {
+      process.stderr.write(
+        `${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return 1;
+    }
+    process.stdout.write(
+      `Generated ${generated.artifacts.length} Expo Router artifacts in "${relative(process.cwd(), outputDirectory)}".\n`,
+    );
+    return 0;
+  }
+
   if (arguments_.command === "inspect") {
     process.stdout.write(`${JSON.stringify(result.ir, null, 2)}\n`);
   } else if (arguments_.command === "test-plan") {
@@ -169,9 +298,21 @@ export function runCli(argv: readonly string[]): number {
   return 0;
 }
 
-if (
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
+function isMainModule(): boolean {
+  if (process.argv[1] === undefined) {
+    return false;
+  }
+
+  try {
+    return (
+      realpathSync(process.argv[1]) ===
+      realpathSync(fileURLToPath(import.meta.url))
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule()) {
   process.exitCode = runCli(process.argv.slice(2));
 }

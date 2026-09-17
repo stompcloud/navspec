@@ -1054,3 +1054,53 @@ The following should be treated as core design constraints:
 - NavSpec source is the source of truth.
 - Avoid premature generalization and unnecessary semantic concepts.
 
+---
+
+## 29. Initial Expo Router target architecture
+
+The initial Expo Router target maps the canonical graph into one flat route
+namespace managed by a Stack. Graph edges produce navigation transitions; they
+do not become nested route folders or nested navigators.
+
+The configured root node maps to the mount index (for example, `/settings`).
+Every other node maps to an absolute stable-ID route below that mount (for
+example, `/settings/privacy`). Shared destinations therefore retain one route
+identity, and cycles require no special route structure.
+
+These URLs identify nodes, not traversal history. The Stack records the path a
+user actually followed. Encoding that path into the URL would give shared
+destinations multiple identities, require an arbitrary parent, or produce
+unbounded paths for cycles. Web addresses and native deep links therefore use
+the same flat canonical routes.
+
+A cold link to a non-root node has no uniquely correct predecessor because a
+graph node may have multiple incoming edges. The generated route island does
+not synthesize one. An application may opt into Expo Router's `anchor` setting
+to provide the mount index as a deterministic fallback back destination, but
+that is presentation/navigation policy rather than graph lineage.
+
+All validated canonical nodes are generated, including nodes reported as
+unreachable. Reachability remains a core diagnostic; a target must not silently
+discard valid canonical data.
+
+The target has two ownership layers:
+
+- one-time route adapters and an application-owned integration module created
+  by explicit initialization
+- repeatable generated source and a manifest replaced atomically during normal
+  generation
+
+Localization uses stable node IDs as keys. Generated English display names are
+fallback presentation data supplied to an application-owned label resolver;
+translated text never changes routes, filenames, action IDs, or test IDs.
+
+Existing Expo Router applications are supported through an explicitly reserved,
+conflict-free route subtree. NavSpec does not parse or rewrite arbitrary root
+layouts, tab definitions, React Navigation configuration, or other handwritten
+navigation logic. Automatic migration and semantic merging are outside the v0.1
+scope.
+
+The host application owns presentation at that boundary. In particular, when a
+root Stack contains the NavSpec Stack, the host can hide the outer route header
+with `headerShown: false` so the nested NavSpec Stack is the only visible header.
+Initialization must not rewrite the root layout to impose this choice.
