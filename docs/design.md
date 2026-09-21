@@ -1104,3 +1104,11 @@ The host application owns presentation at that boundary. In particular, when a
 root Stack contains the NavSpec Stack, the host can hide the outer route header
 with `headerShown: false` so the nested NavSpec Stack is the only visible header.
 Initialization must not rewrite the root layout to impose this choice.
+
+Application-owned React Native components may provide the content for `page`
+nodes through the Expo integration module. The generated integration contract
+keys those components by stable page ID and passes the active page ID as a prop.
+The generated runtime continues to own the Stack title, scrolling container,
+and any outgoing navigation items declared on the page. A missing registration
+uses the generated fallback UI. React component names and imports remain target
+integration details and must not enter YAML or canonical IR.

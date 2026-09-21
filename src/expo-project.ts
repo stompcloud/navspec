@@ -209,6 +209,7 @@ function integrationScaffold(generatedSpecifier: string): string {
 export const navSpecIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
   message: (_id, fallback) => fallback,
+  pageComponents: {},
   invokeAction: (id) => {
     throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
   },

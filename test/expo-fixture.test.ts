@@ -48,6 +48,7 @@ describe("generated Expo project fixture", () => {
 declare namespace JSX { interface Element {} interface IntrinsicElements { [name: string]: unknown; } }
 declare module "react/jsx-runtime" { export const Fragment: unknown; export function jsx(...args: unknown[]): JSX.Element; export function jsxs(...args: unknown[]): JSX.Element; }
 declare module "react" {
+  export type ComponentType<P = {}> = (props: P) => JSX.Element;
   export interface Context<T> { Provider: any; }
   export function createContext<T>(value: T): Context<T>;
   export function useContext<T>(context: Context<T>): T;
@@ -79,6 +80,31 @@ declare module "react-native" {
       publicPath: "/settings",
     } as const;
     initializeExpoRouterProject(root, config);
+    mkdirSync(join(root, "src", "navspec", "pages"), { recursive: true });
+    writeFileSync(
+      join(root, "src", "navspec", "pages", "account-page.tsx"),
+      `import { Text, View } from "react-native";
+
+export default function AccountPage() {
+  return <View><Text>Account content</Text></View>;
+}
+`,
+    );
+    writeFileSync(
+      join(root, "src", "navspec", "integration.ts"),
+      `import type { NavSpecIntegration } from "../generated/navspec/expo";
+import AccountPage from "./pages/account-page";
+
+export const navSpecIntegration: NavSpecIntegration = {
+  label: (_id, fallback) => fallback,
+  message: (_id, fallback) => fallback,
+  pageComponents: { account: AccountPage },
+  invokeAction: (id) => {
+    throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
+  },
+};
+`,
+    );
     const compiled = compileNavigation(`root:
   items: [account, save, docs]
 account:

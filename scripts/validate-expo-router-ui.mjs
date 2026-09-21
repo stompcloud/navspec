@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -161,6 +161,7 @@ const navigationSource = `root:
     - documentation
 
 account:
+  type: page
   items:
     - email
     - save
@@ -224,6 +225,30 @@ export default function RootLayout() {
 }
 `;
 
+const accountPageSource = `import { Text, View } from "react-native";
+
+export default function AccountPage() {
+  return (
+    <View>
+      <Text>Custom account content</Text>
+    </View>
+  );
+}
+`;
+
+const integrationSource = `import type { NavSpecIntegration } from "../generated/navspec/expo";
+import AccountPage from "./pages/account-page";
+
+export const navSpecIntegration: NavSpecIntegration = {
+  label: (_id, fallback) => fallback,
+  message: (_id, fallback) => fallback,
+  pageComponents: { account: AccountPage },
+  invokeAction: (id) => {
+    throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
+  },
+};
+`;
+
 try {
   stage(`Creating Expo SDK 57 project in ${projectDirectory}`);
   await run(
@@ -260,6 +285,19 @@ try {
     {
       cwd: projectDirectory,
     },
+  );
+  await mkdir(join(projectDirectory, "src", "navspec", "pages"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(projectDirectory, "src", "navspec", "pages", "account-page.tsx"),
+    accountPageSource,
+    "utf8",
+  );
+  await writeFile(
+    join(projectDirectory, "src", "navspec", "integration.ts"),
+    integrationSource,
+    "utf8",
   );
   await writeFile(
     join(projectDirectory, "src", "app", "index.tsx"),
@@ -317,6 +355,10 @@ try {
   await expectOneVisible(
     page.getByTestId("navspec:node:account"),
     "Account screen",
+  );
+  await expectOneVisible(
+    page.getByText("Custom account content", { exact: true }),
+    "custom Account page content",
   );
   const email = page.getByTestId("navspec:edge:account->email");
   await expectOneVisible(email, "Email navigation item");

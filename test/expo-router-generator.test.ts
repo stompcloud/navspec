@@ -78,8 +78,19 @@ docs:
       "types.ts",
     ]);
     const runtime = first.artifacts.find(({ path }) => path === "runtime.tsx")!;
+    const types = first.artifacts.find(({ path }) => path === "types.ts")!;
+    expect(types.contents).toContain('export type NavSpecPageId = "account";');
+    expect(types.contents).toContain(
+      "readonly pageComponents?: Partial<Record<NavSpecPageId, NavSpecPageComponent>>;",
+    );
     expect(runtime.contents).toContain(
       "integration.label(node.id, node.displayName)",
+    );
+    expect(runtime.contents).toContain(
+      "integration.pageComponents?.[node.id as NavSpecPageId]",
+    );
+    expect(runtime.contents).toContain(
+      "<PageComponent nodeId={node.id as NavSpecPageId} />",
     );
     expect(runtime.contents).toContain("navspec:edge:");
     expect(runtime.contents).toContain("style={StyleSheet.flatten([");
@@ -117,6 +128,51 @@ docs:
       ).parseDiagnostics;
       expect(diagnostics, artifact.path).toEqual([]);
     }
+  });
+
+  it("limits custom page components to page node IDs", () => {
+    const navigation = ir(`root:
+  items: [details, save, docs]
+details:
+  type: page
+  items: [more-details]
+more-details:
+save:
+  type: action
+docs:
+  type: external-link
+  url: https://example.com/docs
+`);
+    const generated = generateExpoRouter(navigation, {
+      publicPath: "/settings",
+    });
+    const types = generated.artifacts.find(({ path }) => path === "types.ts")!;
+    const runtime = generated.artifacts.find(
+      ({ path }) => path === "runtime.tsx",
+    )!;
+
+    expect(types.contents).toContain(
+      'export type NavSpecPageId = "details" | "more-details";',
+    );
+    expect(types.contents).not.toContain('export type NavSpecPageId = "root"');
+    expect(runtime.contents.indexOf("<PageComponent")).toBeLessThan(
+      runtime.contents.indexOf("node.items.map"),
+    );
+  });
+
+  it("generates an empty page ID type when the graph has no page nodes", () => {
+    const navigation = ir(`root:
+  type: menu
+  items: [save]
+save:
+  type: action
+`);
+    const generated = generateExpoRouter(navigation, {
+      publicPath: "/settings",
+    });
+    const types = generated.artifacts.find(({ path }) => path === "types.ts")!;
+
+    expect(types.contents).toContain("export type NavSpecPageId = never;");
   });
 
   it("keeps route identity stable when presentation labels change", () => {

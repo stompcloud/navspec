@@ -38,17 +38,31 @@ function hashIr(ir: NavigationIR): string {
 
 function typesSource(ir: NavigationIR): string {
   const ids = ir.nodes.map((node) => JSON.stringify(node.id)).join(" | ");
+  const pageIds = ir.nodes
+    .filter((node) => node.type === "page")
+    .map((node) => JSON.stringify(node.id))
+    .join(" | ");
   const actionIds = ir.nodes
     .filter((node) => node.type === "action")
     .map((node) => JSON.stringify(node.id))
     .join(" | ");
-  return `export type NavSpecNodeId = ${ids || "never"};
+  return `import type { ComponentType } from "react";
+
+export type NavSpecNodeId = ${ids || "never"};
+export type NavSpecPageId = ${pageIds || "never"};
 export type NavSpecActionId = ${actionIds || "never"};
+
+export interface NavSpecPageProps {
+  readonly nodeId: NavSpecPageId;
+}
+
+export type NavSpecPageComponent = ComponentType<NavSpecPageProps>;
 
 export interface NavSpecIntegration {
   readonly label: (id: NavSpecNodeId, fallback: string) => string;
   readonly message?: (id: "not-found", fallback: string) => string;
   readonly invokeAction: (id: NavSpecActionId) => void | Promise<void>;
+  readonly pageComponents?: Partial<Record<NavSpecPageId, NavSpecPageComponent>>;
 }
 `;
 }
@@ -119,6 +133,7 @@ import type {
   NavSpecActionId,
   NavSpecIntegration,
   NavSpecNodeId,
+  NavSpecPageId,
 } from "./types";
 
 const missingIntegration: NavSpecIntegration = {
@@ -169,6 +184,10 @@ export function NavSpecScreen({ nodeId }: { readonly nodeId: string }) {
 
   const node = navSpecNodes[nodeId];
   const title = integration.label(node.id, node.displayName);
+  const PageComponent =
+    node.type === "page"
+      ? integration.pageComponents?.[node.id as NavSpecPageId]
+      : undefined;
 
   return (
     <>
@@ -178,7 +197,9 @@ export function NavSpecScreen({ nodeId }: { readonly nodeId: string }) {
         contentContainerStyle={styles.container}
         testID={\`navspec:node:\${node.id}\`}
       >
-        {node.type === "page" && node.items.length === 0 ? (
+        {PageComponent ? (
+          <PageComponent nodeId={node.id as NavSpecPageId} />
+        ) : node.type === "page" && node.items.length === 0 ? (
           <Text style={[styles.title, { color: foreground }]} accessibilityRole="header">
             {title}
           </Text>
@@ -276,6 +297,9 @@ export type {
   NavSpecActionId,
   NavSpecIntegration,
   NavSpecNodeId,
+  NavSpecPageComponent,
+  NavSpecPageId,
+  NavSpecPageProps,
 } from "./types";
 `;
 }

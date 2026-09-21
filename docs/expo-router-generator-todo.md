@@ -124,6 +124,9 @@ custom navigation code is deferred.
       edge IDs.
 - [x] Keep the default UI small, usable, theme-aware, and replaceable without
       adding styling concepts to core IR.
+- [x] Allow application-owned React Native components to populate `page` nodes
+      through a stable-ID component registry while preserving Stack titles,
+      outgoing items, and the generated fallback UI.
 
 ## Phase 5: Localization integration
 

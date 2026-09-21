@@ -57,6 +57,9 @@ describe("Expo project initialization", () => {
     expect(
       readFileSync(join(root, "src", "navspec", "integration.ts"), "utf8"),
     ).toContain("message: (_id, fallback) => fallback");
+    expect(
+      readFileSync(join(root, "src", "navspec", "integration.ts"), "utf8"),
+    ).toContain("pageComponents: {}");
   });
 
   it("refuses route and application-owned file conflicts", () => {

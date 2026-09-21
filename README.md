@@ -242,6 +242,57 @@ remain stable.
 Action nodes require an application handler. The default scaffold throws a
 clear error rather than silently ignoring an action.
 
+### Custom page content
+
+Register application-owned React Native components in the integration module
+to populate `page` nodes. Component keys are checked against the generated page
+IDs, and the components are never overwritten during generation.
+
+A node with `items` normally infers the `menu` type. Give it an explicit
+`page` type when it needs both custom content and outgoing navigation:
+
+```yaml
+account:
+  type: page
+  items:
+    - email
+```
+
+```tsx
+// src/navspec/pages/account-page.tsx
+import { Text, View } from "react-native";
+
+export default function AccountPage() {
+  return (
+    <View>
+      <Text>Your custom account content</Text>
+    </View>
+  );
+}
+```
+
+```ts
+// src/navspec/integration.ts
+import type { NavSpecIntegration } from "../generated/navspec/expo";
+import AccountPage from "./pages/account-page";
+
+export const navSpecIntegration: NavSpecIntegration = {
+  label: (_id, fallback) => fallback,
+  message: (_id, fallback) => fallback,
+  pageComponents: {
+    account: AccountPage,
+  },
+  invokeAction: async (id) => {
+    await actionHandlers[id]();
+  },
+};
+```
+
+The generated runtime retains the Stack title and renders any outgoing items
+declared for the page below the custom content. Without a registered component,
+the page uses the generated fallback UI. Components can live anywhere outside
+the Expo Router route directory; `src/navspec/pages` is only a convention.
+
 ### Existing navigation boundary
 
 v0.1 mounts into a conflict-free Expo Router subtree. It does not automatically
