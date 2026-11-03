@@ -121,7 +121,7 @@ export function parseNavigationYaml(
     let items: string[] | undefined;
     let url: string | undefined;
     let urlSpan: SourceSpan | undefined;
-    const itemSpans: Record<string, SourceSpan[]> = {};
+    const itemSpans: Record<string, SourceSpan[]> = Object.create(null);
 
     if (isMap(value)) {
       for (const property of value.items) {

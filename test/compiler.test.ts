@@ -14,6 +14,41 @@ describe("deriveDisplayName", () => {
 });
 
 describe("compileNavigation", () => {
+  it("compiles constructor as a valid navigation destination", () => {
+    const result = compileNavigation(
+      "root:\n  items: [constructor]\nconstructor:\n",
+    );
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir).toMatchObject({
+      root: "root",
+      nodes: [
+        { id: "root", type: "menu", items: ["constructor"] },
+        { id: "constructor", type: "page", items: [] },
+      ],
+    });
+  });
+
+  it.each(["__proto__", "toString", "hasOwnProperty"])(
+    "reports invalid prototype-like ID %s without throwing",
+    (id) => {
+      const result = compileNavigation(`root:\n  items: [${id}]\n${id}:\n`, {
+        sourcePath: "example.yaml",
+      });
+      expect(result.ir).toBeUndefined();
+      expect(result.diagnostics).toEqual([
+        expect.objectContaining({
+          code: "NAV001",
+          severity: "error",
+          message: `Node ID "${id}" must use stable kebab-case.`,
+          span: expect.objectContaining({
+            sourcePath: "example.yaml",
+            start: expect.objectContaining({ line: 3, column: 1 }),
+          }),
+        }),
+      ]);
+    },
+  );
+
   it("normalizes inferred types and empty definitions", () => {
     const result = compileNavigation(`root:\n  items: [account]\naccount:\n`);
     expect(result.diagnostics).toEqual([]);

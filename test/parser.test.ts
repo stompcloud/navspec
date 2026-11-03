@@ -30,6 +30,24 @@ describe("parseNavigationYaml", () => {
     ).toContain(code);
   });
 
+  it.each(["constructor", "toString", "__proto__", "hasOwnProperty"])(
+    "preserves repeated item spans for prototype-like key %s",
+    (id) => {
+      const result = parseNavigationYaml(
+        `root:\n  items:\n    - ${id}\n    - ${id}\n`,
+        "example.yaml",
+      );
+      expect(result.diagnostics).toEqual([]);
+      const node = result.ast?.nodes[0];
+      expect(node?.items).toEqual([id, id]);
+      expect(Object.hasOwn(node!.itemSpans, id)).toBe(true);
+      expect(node?.itemSpans[id]).toMatchObject([
+        { sourcePath: "example.yaml", start: { line: 3, column: 7 } },
+        { sourcePath: "example.yaml", start: { line: 4, column: 7 } },
+      ]);
+    },
+  );
+
   it("rejects duplicate node IDs", () => {
     const result = parseNavigationYaml("root:\nroot:\n");
     expect(result.diagnostics[0]?.code).toBe("NAVP001");
