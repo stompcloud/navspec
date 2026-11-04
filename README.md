@@ -360,3 +360,7 @@ if (result.ir) {
 ```
 
 The parsed AST preserves what the author wrote and retains source spans. The canonical IR contains explicit node types, item arrays, display names, and stable IDs. Generic test planning consumes canonical IR rather than YAML.
+
+## License
+
+NavSpec, including its documentation and generated template/runtime, scaffold, and test code, is licensed under [MIT No Attribution (MIT-0)](LICENSE). You may use, modify, and distribute it without including NavSpec's copyright or license text in your projects or generated output. No NavSpec notice is inserted into generated files. Third-party dependencies retain their own licenses and any applicable notice requirements.
