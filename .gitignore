@@ -3,6 +3,12 @@ dist/
 coverage/
 *.log
 
+# Local environment files
+.env*
+
+# (Optional) Allow template or example files
+!.env.example
+
 # macOS
 .DS_Store
 *.pem
