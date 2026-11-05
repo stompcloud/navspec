@@ -3,10 +3,17 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, posix, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
+import { normalizeExpoPublicPath } from "./expo-public-path.js";
+import {
+  assertSafeOutputPath,
+  normalizeOutputPath,
+  outputPathsOverlap,
+} from "./output-path.js";
 import type { ExpoRouterOutputConfig } from "./types.js";
 
 export interface ExpoProjectInspection {
@@ -83,7 +90,7 @@ function inspectAppConfig(projectDirectory: string): string[] {
 export function inspectExpoProject(
   projectDirectory: string,
 ): ExpoProjectInspection {
-  const project = resolve(projectDirectory);
+  const project = realpathSync(resolve(projectDirectory));
   const packagePath = join(project, "package.json");
   if (!existsSync(packagePath))
     throw new Error(`No package.json found in "${project}".`);
@@ -204,12 +211,13 @@ export default function NavSpecNodeRoute() {
 }
 
 function integrationScaffold(generatedSpecifier: string): string {
-  return `import type { NavSpecIntegration } from ${JSON.stringify(generatedSpecifier)};
+  return `import { defineNavSpecPageComponents } from ${JSON.stringify(generatedSpecifier)};
+import type { NavSpecIntegration } from ${JSON.stringify(generatedSpecifier)};
 
 export const navSpecIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
   message: (_id, fallback) => fallback,
-  pageComponents: {},
+  pageComponents: defineNavSpecPageComponents({}),
   invokeAction: (id) => {
     throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
   },
@@ -242,27 +250,22 @@ export function initializeExpoRouterProject(
   configBaseDirectory = projectDirectory,
 ): ExpoInitializationResult {
   const inspection = inspectExpoProject(projectDirectory);
-  const configBase = resolve(configBaseDirectory);
-  const publicSegments = config.publicPath.split("/").filter(Boolean);
-  if (publicSegments.length === 0) {
+  const configBase = realpathSync(resolve(configBaseDirectory));
+  const mount = normalizeExpoPublicPath(config.publicPath);
+  if (mount === undefined || mount === "/") {
     throw new Error(
-      "Mounting NavSpec at the application root is not supported by additive initialization.",
+      "The Expo Router public path must contain only static kebab-case segments and cannot mount at the application root.",
     );
   }
-  if (
-    publicSegments.some(
-      (segment) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(segment),
-    )
-  ) {
-    throw new Error(
-      "The Expo Router public path must contain only static kebab-case segments.",
-    );
-  }
+  const publicSegments = mount.slice(1).split("/");
   const expectedRoutesDirectory = join(inspection.routeRoot, ...publicSegments);
   const routesDirectory =
     config.routesDirectory === undefined
       ? expectedRoutesDirectory
-      : resolve(configBase, config.routesDirectory);
+      : resolve(
+          configBase,
+          normalizeOutputPath(config.routesDirectory, "routesDirectory"),
+        );
   if (routesDirectory !== expectedRoutesDirectory) {
     throw new Error(
       `Configured routesDirectory must map to publicPath ${config.publicPath}; expected "${relative(inspection.projectDirectory, expectedRoutesDirectory)}".`,
@@ -284,12 +287,26 @@ export function initializeExpoRouterProject(
     }
     routeParent = join(routeParent, segment);
   }
-  const generatedDirectory = resolve(configBase, config.generatedDirectory);
+  const generatedDirectory = resolve(
+    configBase,
+    normalizeOutputPath(config.generatedDirectory, "generatedDirectory"),
+  );
+  assertSafeOutputPath(configBase, generatedDirectory);
+  assertSafeOutputPath(inspection.projectDirectory, routesDirectory);
   const sourceRoot =
     inspection.routeRoot === join(inspection.projectDirectory, "src", "app")
       ? join(inspection.projectDirectory, "src")
       : inspection.projectDirectory;
   const integrationFile = join(sourceRoot, "navspec", "integration.ts");
+  assertSafeOutputPath(inspection.projectDirectory, integrationFile);
+  if (outputPathsOverlap(generatedDirectory, routesDirectory)) {
+    throw new Error("Generated output and route scaffolds must not overlap.");
+  }
+  if (outputPathsOverlap(generatedDirectory, integrationFile)) {
+    throw new Error(
+      "Generated output and integration scaffold must not overlap.",
+    );
+  }
   const scaffolds = routeScaffolds(
     routesDirectory,
     generatedDirectory,
@@ -318,7 +335,7 @@ export function initializeExpoRouterProject(
   for (const [name, contents] of Object.entries(scaffolds)) {
     const path = join(routesDirectory, name);
     if (!existsSync(path)) {
-      writeFileSync(path, contents, "utf8");
+      writeFileSync(path, contents, { encoding: "utf8", flag: "wx" });
       created.push(relative(inspection.projectDirectory, path));
     }
   }
@@ -328,11 +345,10 @@ export function initializeExpoRouterProject(
       integrationFile,
       generatedDirectory,
     );
-    writeFileSync(
-      integrationFile,
-      integrationScaffold(generatedSpecifier),
-      "utf8",
-    );
+    writeFileSync(integrationFile, integrationScaffold(generatedSpecifier), {
+      encoding: "utf8",
+      flag: "wx",
+    });
     created.push(relative(inspection.projectDirectory, integrationFile));
   }
   return {

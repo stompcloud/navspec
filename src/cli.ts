@@ -11,7 +11,12 @@ import {
   defaultExpoRouterOutput,
   parseConfig,
 } from "./config.js";
-import { formatDiagnostic, hasErrors } from "./diagnostics.js";
+import {
+  escapeTerminalText,
+  formatDiagnostic,
+  formatTerminalJson,
+  hasErrors,
+} from "./diagnostics.js";
 import { generateExpoRouter } from "./expo-router-generator.js";
 import { initializeExpoRouterProject } from "./expo-project.js";
 import {
@@ -142,13 +147,13 @@ function readProject(arguments_: CliArguments): {
   };
 }
 
-export function runCli(argv: readonly string[]): number {
+function executeCli(argv: readonly string[]): number {
   let arguments_: CliArguments;
   try {
     arguments_ = parseArguments(argv);
   } catch (error) {
     process.stderr.write(
-      `${error instanceof Error ? error.message : String(error)}\n\n${usage}\n`,
+      `${escapeTerminalText(error instanceof Error ? error.message : String(error))}\n\n${usage}\n`,
     );
     return 2;
   }
@@ -172,14 +177,14 @@ export function runCli(argv: readonly string[]): number {
     ]).has(arguments_.command)
   ) {
     process.stderr.write(
-      `Unknown command "${arguments_.command}".\n\n${usage}\n`,
+      `Unknown command "${escapeTerminalText(arguments_.command)}".\n\n${usage}\n`,
     );
     return 2;
   }
 
   if (arguments_.target !== undefined && arguments_.target !== "expo-router") {
     process.stderr.write(
-      `Unsupported target "${arguments_.target}". Supported target: expo-router.\n`,
+      `Unsupported target "${escapeTerminalText(arguments_.target)}". Supported target: expo-router.\n`,
     );
     return 2;
   }
@@ -195,7 +200,9 @@ export function runCli(argv: readonly string[]): number {
         configuration.baseDirectory,
       );
       for (const warning of initialized.warnings) {
-        process.stderr.write(`WARNING EXPO101: ${warning}\n`);
+        process.stderr.write(
+          `WARNING EXPO101: ${escapeTerminalText(warning)}\n`,
+        );
       }
       const created = initialized.created.length;
       process.stdout.write(
@@ -207,7 +214,7 @@ export function runCli(argv: readonly string[]): number {
       return 0;
     } catch (error) {
       process.stderr.write(
-        `${error instanceof Error ? error.message : String(error)}\n`,
+        `${escapeTerminalText(error instanceof Error ? error.message : String(error))}\n`,
       );
       return 1;
     }
@@ -218,7 +225,7 @@ export function runCli(argv: readonly string[]): number {
     project = readProject(arguments_);
   } catch (error) {
     process.stderr.write(
-      `${error instanceof Error ? error.message : String(error)}\n`,
+      `${escapeTerminalText(error instanceof Error ? error.message : String(error))}\n`,
     );
     return 1;
   }
@@ -259,35 +266,45 @@ export function runCli(argv: readonly string[]): number {
       project.configuration.baseDirectory,
       expo.generatedDirectory,
     );
-    if (arguments_.command === "check") {
-      if (!generatedArtifactsAreCurrent(outputDirectory, generated.artifacts)) {
-        process.stderr.write(
-          `Generated Expo Router output is missing or stale at "${relative(process.cwd(), outputDirectory)}".\n`,
-        );
-        return 1;
-      }
-      process.stdout.write("Generated Expo Router output is current.\n");
-      return 0;
-    }
     try {
-      materializeGeneratedArtifacts(outputDirectory, generated.artifacts);
+      if (arguments_.command === "check") {
+        if (
+          !generatedArtifactsAreCurrent(
+            outputDirectory,
+            generated.artifacts,
+            project.configuration.baseDirectory,
+          )
+        ) {
+          process.stderr.write(
+            `Generated Expo Router output is missing or stale at "${escapeTerminalText(relative(process.cwd(), outputDirectory))}".\n`,
+          );
+          return 1;
+        }
+        process.stdout.write("Generated Expo Router output is current.\n");
+        return 0;
+      }
+      materializeGeneratedArtifacts(
+        outputDirectory,
+        generated.artifacts,
+        project.configuration.baseDirectory,
+      );
     } catch (error) {
       process.stderr.write(
-        `${error instanceof Error ? error.message : String(error)}\n`,
+        `${escapeTerminalText(error instanceof Error ? error.message : String(error))}\n`,
       );
       return 1;
     }
     process.stdout.write(
-      `Generated ${generated.artifacts.length} Expo Router artifacts in "${relative(process.cwd(), outputDirectory)}".\n`,
+      `Generated ${generated.artifacts.length} Expo Router artifacts in "${escapeTerminalText(relative(process.cwd(), outputDirectory))}".\n`,
     );
     return 0;
   }
 
   if (arguments_.command === "inspect") {
-    process.stdout.write(`${JSON.stringify(result.ir, null, 2)}\n`);
+    process.stdout.write(`${formatTerminalJson(result.ir)}\n`);
   } else if (arguments_.command === "test-plan") {
     process.stdout.write(
-      `${JSON.stringify(planNavigationTests(result.ir), null, 2)}\n`,
+      `${formatTerminalJson(planNavigationTests(result.ir))}\n`,
     );
   } else {
     const nodeCount = result.ir.nodes.length;
@@ -296,6 +313,17 @@ export function runCli(argv: readonly string[]): number {
     );
   }
   return 0;
+}
+
+export function runCli(argv: readonly string[]): number {
+  try {
+    return executeCli(argv);
+  } catch (error) {
+    process.stderr.write(
+      `${escapeTerminalText(error instanceof Error ? error.message : String(error))}\n`,
+    );
+    return 1;
+  }
 }
 
 function isMainModule(): boolean {

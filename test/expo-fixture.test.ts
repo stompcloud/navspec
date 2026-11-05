@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -92,13 +92,14 @@ export default function AccountPage() {
     );
     writeFileSync(
       join(root, "src", "navspec", "integration.ts"),
-      `import type { NavSpecIntegration } from "../generated/navspec/expo";
+      `import { defineNavSpecPageComponents } from "../generated/navspec/expo";
+import type { NavSpecIntegration } from "../generated/navspec/expo";
 import AccountPage from "./pages/account-page";
 
 export const navSpecIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
   message: (_id, fallback) => fallback,
-  pageComponents: { account: AccountPage },
+  pageComponents: defineNavSpecPageComponents({ account: AccountPage }),
   invokeAction: (id) => {
     throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
   },
@@ -106,7 +107,8 @@ export const navSpecIntegration: NavSpecIntegration = {
 `,
     );
     const compiled = compileNavigation(`root:
-  items: [account, save, docs]
+  items: [account, save, docs, constructor]
+constructor:
 account:
 save:
   type: action
@@ -120,18 +122,61 @@ docs:
     materializeGeneratedArtifacts(
       join(root, config.generatedDirectory),
       generated.artifacts,
+      root,
+    );
+    const noPages = generateExpoRouter(
+      compileNavigation(
+        "root:\n  type: menu\n  items: [save]\nsave:\n  type: action\n",
+      ).ir!,
+      { publicPath: "/empty" },
+    );
+    writeFileSync(
+      join(root, "src/no-page-types.ts"),
+      noPages.artifacts.find(({ path }) => path === "types.ts")!.contents,
+    );
+    writeFileSync(
+      join(root, "src/navspec/registry-type-checks.ts"),
+      `import { defineNavSpecPageComponents } from "../generated/navspec/expo";
+import type { NavSpecIntegration, NavSpecPageComponents } from "../generated/navspec/expo";
+import type { NavSpecPageComponents as NoPageComponents } from "../no-page-types";
+import AccountPage from "./pages/account-page";
+
+const ordinaryRegistry = { account: AccountPage };
+const empty: NavSpecPageComponents = defineNavSpecPageComponents({});
+const ordinary: NavSpecPageComponents = defineNavSpecPageComponents(ordinaryRegistry);
+const ownConstructor: NavSpecPageComponents = defineNavSpecPageComponents({ constructor: AccountPage });
+const integration: NavSpecIntegration = {
+  label: (_id, fallback) => fallback,
+  invokeAction: () => {},
+  pageComponents: ownConstructor,
+};
+defineNavSpecPageComponents({ account: ({ nodeId }) => {
+  const id: "constructor" | "account" = nodeId;
+  return AccountPage();
+} });
+
+// @ts-expect-error A non-React class cannot be registered as a page component.
+defineNavSpecPageComponents({ constructor: class NotAReactComponent {} });
+// @ts-expect-error Direct registrations must also remain component-only.
+const invalidDirectRegistry: NavSpecPageComponents = { constructor: class NotAReactComponent {} };
+// @ts-expect-error Invalid component values are rejected for ordinary IDs too.
+defineNavSpecPageComponents({ account: 42 });
+// @ts-expect-error Unknown node IDs are not page registry keys.
+defineNavSpecPageComponents({ unknown: AccountPage });
+// @ts-expect-error Action IDs are not page registry keys.
+defineNavSpecPageComponents({ save: AccountPage });
+const noPagesEmpty: NoPageComponents = {};
+// @ts-expect-error A graph without pages cannot have registrations.
+const noPagesRegistration: NoPageComponents = { constructor: AccountPage };
+`,
     );
 
-    expect(() =>
-      execFileSync(
-        resolve("node_modules", ".bin", "tsc"),
-        ["--project", root],
-        {
-          cwd: root,
-          encoding: "utf8",
-          stdio: "pipe",
-        },
-      ),
-    ).not.toThrow();
+    const checked = spawnSync(
+      resolve("node_modules", ".bin", "tsc"),
+      ["--project", root],
+      { cwd: root, encoding: "utf8", timeout: 10000 },
+    );
+    expect(checked.error).toBeUndefined();
+    expect(checked.status, `${checked.stdout}\n${checked.stderr}`).toBe(0);
   });
 });

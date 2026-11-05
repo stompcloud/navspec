@@ -26,6 +26,81 @@ function project(files: Record<string, string>): string {
 afterEach(cleanupTempDirectories);
 
 describe("CLI", () => {
+  it.each(["inspect", "test-plan"])(
+    "escapes controls in %s JSON while preserving data",
+    (command) => {
+      const url =
+        "https://example.com/\u009b2J\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\u0000\u001f\t\r\nmarker";
+      const cwd = project({
+        "nav.yaml": `root:\n  items: [docs]\ndocs:\n  type: external-link\n  url: ${JSON.stringify(url)}\n`,
+      });
+      const result = spawnSync(process.execPath, [cli, command], {
+        cwd,
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).not.toContain("\u009b");
+      expect(result.stdout).not.toMatch(/\p{Bidi_Control}/u);
+      expect(result.stdout).not.toMatch(/[\u0000-\u0009\u000b-\u001f]/u);
+      expect(result.stdout).toContain("\\u061c");
+      expect(result.stdout).toContain("{\n");
+      const parsed = JSON.parse(result.stdout);
+      expect(
+        command === "inspect"
+          ? parsed.nodes[1].url
+          : parsed.edgeCases[0].expectedUrl,
+      ).toBe(url);
+    },
+  );
+
+  it("escapes U+061C in decoded reference diagnostics", () => {
+    const cwd = project({
+      "nav.yaml": 'root:\n  items: ["\\u061cmissing"]\n',
+    });
+    const result = spawnSync(process.execPath, [cli, "validate"], {
+      cwd,
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).not.toMatch(/\p{Bidi_Control}/u);
+    expect(result.stderr).toContain('references unknown node "\\u061cmissing"');
+  });
+
+  it.each([
+    ["unknown\x1b[2J"],
+    ["validate", "--target", "bad\x9b"],
+    ["validate", "--config", "missing\x1b.yaml"],
+  ])("escapes controls in CLI errors %j", (...args) => {
+    const cwd = project({ "nav.yaml": "root:\n" });
+    const result = spawnSync(process.execPath, [cli, ...args], {
+      cwd,
+      encoding: "utf8",
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).not.toMatch(
+      /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/u,
+    );
+    expect(result.stderr).toMatch(/\\u00(?:1b|9b)/u);
+  });
+  it("validates an 8000-node chain through the CLI", () => {
+    const count = 8000;
+    const source =
+      Array.from(
+        { length: count },
+        (_, i) =>
+          `${i === 0 ? "root" : `n-${i}`}:${i + 1 < count ? `\n  items: [n-${i + 1}]` : ""}`,
+      ).join("\n") + "\n";
+    const cwd = project({ "nav.yaml": source });
+    const result = spawnSync(process.execPath, [cli, "validate"], {
+      cwd,
+      encoding: "utf8",
+      timeout: 10000,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("8000 nodes");
+  });
+
   it("runs through an npm-style executable symlink", () => {
     const cwd = project({
       "nav.yaml": "root:\n  items: [account]\naccount:\n",

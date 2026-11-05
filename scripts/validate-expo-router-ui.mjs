@@ -159,6 +159,9 @@ const navigationSource = `root:
   items:
     - account
     - documentation
+    - constructor
+
+constructor:
 
 account:
   type: page
@@ -236,13 +239,14 @@ export default function AccountPage() {
 }
 `;
 
-const integrationSource = `import type { NavSpecIntegration } from "../generated/navspec/expo";
+const integrationSource = `import { defineNavSpecPageComponents } from "../generated/navspec/expo";
+import type { NavSpecIntegration } from "../generated/navspec/expo";
 import AccountPage from "./pages/account-page";
 
 export const navSpecIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
   message: (_id, fallback) => fallback,
-  pageComponents: { account: AccountPage },
+  pageComponents: defineNavSpecPageComponents({ account: AccountPage }),
   invokeAction: (id) => {
     throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
   },
@@ -383,6 +387,16 @@ try {
   await expectOneVisible(
     page.getByTestId("navspec:node:account"),
     "Account screen after back navigation",
+  );
+  stage("Verifying an unregistered constructor page uses fallback content");
+  await page.goto(`${baseUrl}/navspec`, { waitUntil: "domcontentloaded" });
+  await page.getByTestId("navspec:edge:root->constructor").click();
+  await page.waitForURL(`${baseUrl}/navspec/constructor`);
+  const constructorPage = page.getByTestId("navspec:node:constructor");
+  await expectOneVisible(constructorPage, "Constructor fallback screen");
+  await expectOneVisible(
+    constructorPage.getByText("Constructor", { exact: true }),
+    "Constructor fallback content",
   );
   assert.deepEqual(
     runtimeErrors,

@@ -1,3 +1,5 @@
+import { runInNewContext } from "node:vm";
+
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
@@ -12,6 +14,59 @@ function ir(source: string) {
 }
 
 describe("Expo Router target", () => {
+  it.each([
+    "/${globalThis.injected = true}",
+    "/x`;/globalThis.injected=true;//",
+    "/a\\b",
+    "//host",
+    "//",
+    "/a?x=1",
+    "/a#fragment",
+    "/a/../b",
+    "/a\n",
+    "/a\u001b[2J",
+    '/a"b',
+    "/a//b",
+  ])(
+    "rejects an unsafe API publicPath %s before emitting code",
+    (publicPath) => {
+      const navigation = ir("root:\n");
+      expect(planExpoRoutes(navigation, publicPath).diagnostics).toMatchObject([
+        { code: "EXPO001", severity: "error" },
+      ]);
+      expect(generateExpoRouter(navigation, { publicPath }).artifacts).toEqual(
+        [],
+      );
+    },
+  );
+
+  it.each(["/", "/settings", "/settings/account/"])(
+    "emits working route code for %s",
+    (publicPath) => {
+      const generated = generateExpoRouter(
+        ir("root:\n  items: [details]\ndetails:\n"),
+        { publicPath },
+      );
+      const source = generated.artifacts.find(
+        ({ path }) => path === "routes.ts",
+      )!.contents;
+      const js = ts.transpileModule(source, {
+        compilerOptions: { module: ts.ModuleKind.CommonJS },
+      }).outputText;
+      const context = {
+        exports: {} as { routeForNavSpecNode: (id: string) => string },
+        require: () => ({ navSpecRootId: "root" }),
+      };
+      runInNewContext(js, context, { timeout: 1000 });
+      const normalized =
+        publicPath === "/" ? "/" : publicPath.replace(/\/$/u, "");
+      expect(context.exports.routeForNavSpecNode("root")).toBe(normalized);
+      expect(context.exports.routeForNavSpecNode("details")).toBe(
+        `${normalized === "/" ? "" : normalized}/details`,
+      );
+    },
+  );
+
   it("maps a graph to stable flat absolute routes", () => {
     const navigation = ir(`root:
   items: [account, security]
@@ -81,13 +136,14 @@ docs:
     const types = first.artifacts.find(({ path }) => path === "types.ts")!;
     expect(types.contents).toContain('export type NavSpecPageId = "account";');
     expect(types.contents).toContain(
-      "readonly pageComponents?: Partial<Record<NavSpecPageId, NavSpecPageComponent>>;",
+      "readonly pageComponents?: NavSpecPageComponents;",
     );
+    expect(types.contents).not.toContain('Object["constructor"]');
     expect(runtime.contents).toContain(
       "integration.label(node.id, node.displayName)",
     );
     expect(runtime.contents).toContain(
-      "integration.pageComponents?.[node.id as NavSpecPageId]",
+      "integration.pageComponents[node.id as NavSpecPageId]",
     );
     expect(runtime.contents).toContain(
       "<PageComponent nodeId={node.id as NavSpecPageId} />",

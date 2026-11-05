@@ -58,11 +58,15 @@ export interface NavSpecPageProps {
 
 export type NavSpecPageComponent = ComponentType<NavSpecPageProps>;
 
+export type NavSpecPageComponents = [NavSpecPageId] extends [never]
+  ? Readonly<Record<string, never>>
+  : Partial<Record<NavSpecPageId, NavSpecPageComponent>>;
+
 export interface NavSpecIntegration {
   readonly label: (id: NavSpecNodeId, fallback: string) => string;
   readonly message?: (id: "not-found", fallback: string) => string;
   readonly invokeAction: (id: NavSpecActionId) => void | Promise<void>;
-  readonly pageComponents?: Partial<Record<NavSpecPageId, NavSpecPageComponent>>;
+  readonly pageComponents?: NavSpecPageComponents;
 }
 `;
 }
@@ -109,7 +113,7 @@ export const navSpecPublicPath = ${JSON.stringify(publicPath)} as const;
 
 export function routeForNavSpecNode(id: NavSpecNodeId): Href {
   if (id === navSpecRootId) return navSpecPublicPath as Href;
-  return \`${publicPath === "/" ? "" : publicPath}/\${id}\` as Href;
+  return \`${publicPath === "/" ? "" : "\${navSpecPublicPath}"}/\${id}\` as Href;
 }
 `;
 }
@@ -134,7 +138,18 @@ import type {
   NavSpecIntegration,
   NavSpecNodeId,
   NavSpecPageId,
+  NavSpecPageComponent,
+  NavSpecPageComponents,
 } from "./types";
+
+// Validate supplied keys without treating inherited Object.constructor as a registration.
+export function defineNavSpecPageComponents<const Components extends object>(
+  components: Components & {
+    [Id in keyof Components]: Id extends NavSpecPageId ? NavSpecPageComponent : never;
+  },
+): NavSpecPageComponents {
+  return Object.assign(Object.create(null) as NavSpecPageComponents, components);
+}
 
 const missingIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
@@ -185,8 +200,9 @@ export function NavSpecScreen({ nodeId }: { readonly nodeId: string }) {
   const node = navSpecNodes[nodeId];
   const title = integration.label(node.id, node.displayName);
   const PageComponent =
-    node.type === "page"
-      ? integration.pageComponents?.[node.id as NavSpecPageId]
+    node.type === "page" && integration.pageComponents &&
+    Object.prototype.hasOwnProperty.call(integration.pageComponents, node.id)
+      ? integration.pageComponents[node.id as NavSpecPageId] as NavSpecPageComponent | undefined
       : undefined;
 
   return (
@@ -292,12 +308,13 @@ const styles = StyleSheet.create({
 function indexSource(): string {
   return `export { navSpecNodes, navSpecRootId } from "./model";
 export { routeForNavSpecNode, navSpecPublicPath } from "./routes";
-export { NavSpecProvider, NavSpecScreen } from "./runtime";
+export { defineNavSpecPageComponents, NavSpecProvider, NavSpecScreen } from "./runtime";
 export type {
   NavSpecActionId,
   NavSpecIntegration,
   NavSpecNodeId,
   NavSpecPageComponent,
+  NavSpecPageComponents,
   NavSpecPageId,
   NavSpecPageProps,
 } from "./types";

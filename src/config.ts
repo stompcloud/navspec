@@ -1,5 +1,8 @@
 import { isMap, isScalar, parseDocument } from "yaml";
 
+import { normalizeExpoPublicPath } from "./expo-public-path.js";
+import { normalizeOutputPath, outputPathsOverlap } from "./output-path.js";
+
 import type {
   ExpoRouterOutputConfig,
   NavSpecConfig,
@@ -41,30 +44,14 @@ function scalarString(value: unknown, property: string): string | undefined {
   return value.value;
 }
 
-function safeRelativePath(value: string, property: string): string {
-  if (
-    value.startsWith("/") ||
-    /^[A-Za-z]:[\\/]/u.test(value) ||
-    value.split(/[\\/]/u).includes("..")
-  ) {
-    throw new Error(
-      `${property} must be a relative path without ".." segments.`,
-    );
-  }
-  return value.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/$/u, "");
-}
-
 function publicPath(value: string): string {
   if (!value.startsWith("/") || value.includes("?") || value.includes("#")) {
     throw new Error(
       "outputs.expo-router.publicPath must be an absolute URL path without a query or fragment.",
     );
   }
-  const normalized = value === "/" ? value : value.replace(/\/$/u, "");
-  const segments = normalized.split("/").slice(1);
-  if (
-    segments.some((segment) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(segment))
-  ) {
+  const normalized = normalizeExpoPublicPath(value);
+  if (normalized === undefined || normalized === "/") {
     throw new Error(
       "outputs.expo-router.publicPath must contain only static kebab-case segments.",
     );
@@ -86,7 +73,7 @@ function parseExpoRouterOutput(value: unknown): ExpoRouterOutputConfig {
       );
     }
   }
-  const generatedDirectory = safeRelativePath(
+  const generatedDirectory = normalizeOutputPath(
     scalarString(
       values.get("generatedDirectory"),
       "outputs.expo-router.generatedDirectory",
@@ -105,7 +92,7 @@ function parseExpoRouterOutput(value: unknown): ExpoRouterOutputConfig {
   const routesDirectory =
     routesValue === undefined
       ? undefined
-      : safeRelativePath(routesValue, "outputs.expo-router.routesDirectory");
+      : normalizeOutputPath(routesValue, "outputs.expo-router.routesDirectory");
   if (routesDirectory === "") {
     throw new Error(
       "outputs.expo-router.routesDirectory must not resolve to the project root.",
@@ -124,9 +111,7 @@ function parseExpoRouterOutput(value: unknown): ExpoRouterOutputConfig {
   };
   if (
     routesDirectory !== undefined &&
-    (routesDirectory === generatedDirectory ||
-      routesDirectory.startsWith(`${generatedDirectory}/`) ||
-      generatedDirectory.startsWith(`${routesDirectory}/`))
+    outputPathsOverlap(routesDirectory, generatedDirectory)
   ) {
     throw new Error(
       "outputs.expo-router generatedDirectory and routesDirectory must not overlap.",
