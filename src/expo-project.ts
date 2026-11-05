@@ -5,8 +5,9 @@ import {
   readdirSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, posix, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
+import { assertSafeOutputPath, normalizeOutputPath } from "./output-path.js";
 import type { ExpoRouterOutputConfig } from "./types.js";
 
 export interface ExpoProjectInspection {
@@ -262,7 +263,10 @@ export function initializeExpoRouterProject(
   const routesDirectory =
     config.routesDirectory === undefined
       ? expectedRoutesDirectory
-      : resolve(configBase, config.routesDirectory);
+      : resolve(
+          configBase,
+          normalizeOutputPath(config.routesDirectory, "routesDirectory"),
+        );
   if (routesDirectory !== expectedRoutesDirectory) {
     throw new Error(
       `Configured routesDirectory must map to publicPath ${config.publicPath}; expected "${relative(inspection.projectDirectory, expectedRoutesDirectory)}".`,
@@ -284,12 +288,31 @@ export function initializeExpoRouterProject(
     }
     routeParent = join(routeParent, segment);
   }
-  const generatedDirectory = resolve(configBase, config.generatedDirectory);
+  const generatedDirectory = resolve(
+    configBase,
+    normalizeOutputPath(config.generatedDirectory, "generatedDirectory"),
+  );
+  assertSafeOutputPath(configBase, generatedDirectory);
+  assertSafeOutputPath(inspection.projectDirectory, routesDirectory);
   const sourceRoot =
     inspection.routeRoot === join(inspection.projectDirectory, "src", "app")
       ? join(inspection.projectDirectory, "src")
       : inspection.projectDirectory;
   const integrationFile = join(sourceRoot, "navspec", "integration.ts");
+  assertSafeOutputPath(inspection.projectDirectory, integrationFile);
+  const isWithin = (base: string, path: string): boolean => {
+    const suffix = relative(base, path);
+    return (
+      suffix === "" ||
+      (suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix))
+    );
+  };
+  if (
+    isWithin(generatedDirectory, routesDirectory) ||
+    isWithin(routesDirectory, generatedDirectory)
+  ) {
+    throw new Error("Generated output and route scaffolds must not overlap.");
+  }
   const scaffolds = routeScaffolds(
     routesDirectory,
     generatedDirectory,
@@ -318,7 +341,7 @@ export function initializeExpoRouterProject(
   for (const [name, contents] of Object.entries(scaffolds)) {
     const path = join(routesDirectory, name);
     if (!existsSync(path)) {
-      writeFileSync(path, contents, "utf8");
+      writeFileSync(path, contents, { encoding: "utf8", flag: "wx" });
       created.push(relative(inspection.projectDirectory, path));
     }
   }
@@ -328,11 +351,10 @@ export function initializeExpoRouterProject(
       integrationFile,
       generatedDirectory,
     );
-    writeFileSync(
-      integrationFile,
-      integrationScaffold(generatedSpecifier),
-      "utf8",
-    );
+    writeFileSync(integrationFile, integrationScaffold(generatedSpecifier), {
+      encoding: "utf8",
+      flag: "wx",
+    });
     created.push(relative(inspection.projectDirectory, integrationFile));
   }
   return {

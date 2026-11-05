@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 
+import { assertSafeOutputPath } from "./output-path.js";
 import type { GeneratedArtifact } from "./types.js";
 
 function validateArtifactPath(path: string): void {
@@ -28,6 +29,10 @@ function filesBelow(directory: string, prefix = ""): string[] {
   if (!existsSync(directory)) return [];
   const result: string[] = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isSymbolicLink())
+      throw new Error(
+        `Refusing generated output containing symbolic link "${join(directory, entry.name)}".`,
+      );
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory())
       result.push(...filesBelow(join(directory, entry.name), relative));
@@ -125,7 +130,9 @@ function writeArtifacts(
 export function materializeGeneratedArtifacts(
   directory: string,
   artifacts: readonly GeneratedArtifact[],
+  baseDirectory = dirname(resolve(directory)),
 ): void {
+  assertSafeOutputPath(baseDirectory, directory);
   assertGeneratedManifest(artifacts);
   const output = resolve(directory);
   const parent = dirname(output);
@@ -160,7 +167,9 @@ export function materializeGeneratedArtifacts(
 export function generatedArtifactsAreCurrent(
   directory: string,
   artifacts: readonly GeneratedArtifact[],
+  baseDirectory = dirname(resolve(directory)),
 ): boolean {
+  assertSafeOutputPath(baseDirectory, directory);
   const expected = [...artifacts].sort((a, b) => a.path.localeCompare(b.path));
   const actualFiles = filesBelow(resolve(directory));
   if (actualFiles.length !== expected.length) return false;

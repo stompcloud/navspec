@@ -259,18 +259,28 @@ export function runCli(argv: readonly string[]): number {
       project.configuration.baseDirectory,
       expo.generatedDirectory,
     );
-    if (arguments_.command === "check") {
-      if (!generatedArtifactsAreCurrent(outputDirectory, generated.artifacts)) {
-        process.stderr.write(
-          `Generated Expo Router output is missing or stale at "${relative(process.cwd(), outputDirectory)}".\n`,
-        );
-        return 1;
-      }
-      process.stdout.write("Generated Expo Router output is current.\n");
-      return 0;
-    }
     try {
-      materializeGeneratedArtifacts(outputDirectory, generated.artifacts);
+      if (arguments_.command === "check") {
+        if (
+          !generatedArtifactsAreCurrent(
+            outputDirectory,
+            generated.artifacts,
+            project.configuration.baseDirectory,
+          )
+        ) {
+          process.stderr.write(
+            `Generated Expo Router output is missing or stale at "${relative(process.cwd(), outputDirectory)}".\n`,
+          );
+          return 1;
+        }
+        process.stdout.write("Generated Expo Router output is current.\n");
+        return 0;
+      }
+      materializeGeneratedArtifacts(
+        outputDirectory,
+        generated.artifacts,
+        project.configuration.baseDirectory,
+      );
     } catch (error) {
       process.stderr.write(
         `${error instanceof Error ? error.message : String(error)}\n`,
