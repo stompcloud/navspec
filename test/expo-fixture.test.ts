@@ -106,7 +106,8 @@ export const navSpecIntegration: NavSpecIntegration = {
 `,
     );
     const compiled = compileNavigation(`root:
-  items: [account, save, docs]
+  items: [account, save, docs, constructor]
+constructor:
 account:
 save:
   type: action

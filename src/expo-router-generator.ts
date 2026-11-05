@@ -62,7 +62,10 @@ export interface NavSpecIntegration {
   readonly label: (id: NavSpecNodeId, fallback: string) => string;
   readonly message?: (id: "not-found", fallback: string) => string;
   readonly invokeAction: (id: NavSpecActionId) => void | Promise<void>;
-  readonly pageComponents?: Partial<Record<NavSpecPageId, NavSpecPageComponent>>;
+  // Ordinary objects inherit constructor; only own registrations are rendered.
+  readonly pageComponents?: {
+    [Id in NavSpecPageId]?: NavSpecPageComponent | (Id extends "constructor" ? Object["constructor"] : never);
+  };
 }
 `;
 }
@@ -134,6 +137,7 @@ import type {
   NavSpecIntegration,
   NavSpecNodeId,
   NavSpecPageId,
+  NavSpecPageComponent,
 } from "./types";
 
 const missingIntegration: NavSpecIntegration = {
@@ -187,7 +191,7 @@ export function NavSpecScreen({ nodeId }: { readonly nodeId: string }) {
   const PageComponent =
     node.type === "page" && integration.pageComponents &&
     Object.prototype.hasOwnProperty.call(integration.pageComponents, node.id)
-      ? integration.pageComponents[node.id as NavSpecPageId]
+      ? integration.pageComponents[node.id as NavSpecPageId] as NavSpecPageComponent | undefined
       : undefined;
 
   return (

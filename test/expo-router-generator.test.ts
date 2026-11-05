@@ -136,7 +136,7 @@ docs:
     const types = first.artifacts.find(({ path }) => path === "types.ts")!;
     expect(types.contents).toContain('export type NavSpecPageId = "account";');
     expect(types.contents).toContain(
-      "readonly pageComponents?: Partial<Record<NavSpecPageId, NavSpecPageComponent>>;",
+      '[Id in NavSpecPageId]?: NavSpecPageComponent | (Id extends "constructor" ? Object["constructor"] : never);',
     );
     expect(runtime.contents).toContain(
       "integration.label(node.id, node.displayName)",
