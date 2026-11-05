@@ -56,6 +56,8 @@ describe("output security", () => {
     "\\outside",
     "\\\\server\\share",
     "C:outside",
+    "./C:outside",
+    ".//C:outside",
     "C:\\outside",
     ".",
     "./.",

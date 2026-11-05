@@ -3,9 +3,10 @@ import { isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 
 export function normalizeOutputPath(value: string, property: string): string {
   const path = value.replaceAll("\\", "/");
+  const normalized = posix.normalize(path);
   if (
     path.startsWith("/") ||
-    /^[A-Za-z]:/u.test(path) ||
+    /^[A-Za-z]:/u.test(normalized) ||
     path.split("/").includes("..") ||
     path.includes("\0")
   ) {
@@ -13,7 +14,6 @@ export function normalizeOutputPath(value: string, property: string): string {
       `${property} must be a relative path without ".." segments.`,
     );
   }
-  const normalized = posix.normalize(path);
   if (normalized === ".")
     throw new Error(`${property} must not resolve to the project root.`);
   return normalized.replace(/\/$/u, "");
