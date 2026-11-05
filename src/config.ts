@@ -1,5 +1,6 @@
 import { isMap, isScalar, parseDocument } from "yaml";
 
+import { normalizeExpoPublicPath } from "./expo-public-path.js";
 import { normalizeOutputPath } from "./output-path.js";
 
 import type {
@@ -49,11 +50,8 @@ function publicPath(value: string): string {
       "outputs.expo-router.publicPath must be an absolute URL path without a query or fragment.",
     );
   }
-  const normalized = value === "/" ? value : value.replace(/\/$/u, "");
-  const segments = normalized.split("/").slice(1);
-  if (
-    segments.some((segment) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(segment))
-  ) {
+  const normalized = normalizeExpoPublicPath(value);
+  if (normalized === undefined || normalized === "/") {
     throw new Error(
       "outputs.expo-router.publicPath must contain only static kebab-case segments.",
     );

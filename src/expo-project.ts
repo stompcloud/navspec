@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
+import { normalizeExpoPublicPath } from "./expo-public-path.js";
 import { assertSafeOutputPath, normalizeOutputPath } from "./output-path.js";
 import type { ExpoRouterOutputConfig } from "./types.js";
 
@@ -244,21 +245,13 @@ export function initializeExpoRouterProject(
 ): ExpoInitializationResult {
   const inspection = inspectExpoProject(projectDirectory);
   const configBase = resolve(configBaseDirectory);
-  const publicSegments = config.publicPath.split("/").filter(Boolean);
-  if (publicSegments.length === 0) {
+  const mount = normalizeExpoPublicPath(config.publicPath);
+  if (mount === undefined || mount === "/") {
     throw new Error(
-      "Mounting NavSpec at the application root is not supported by additive initialization.",
+      "The Expo Router public path must contain only static kebab-case segments and cannot mount at the application root.",
     );
   }
-  if (
-    publicSegments.some(
-      (segment) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(segment),
-    )
-  ) {
-    throw new Error(
-      "The Expo Router public path must contain only static kebab-case segments.",
-    );
-  }
+  const publicSegments = mount.slice(1).split("/");
   const expectedRoutesDirectory = join(inspection.routeRoot, ...publicSegments);
   const routesDirectory =
     config.routesDirectory === undefined

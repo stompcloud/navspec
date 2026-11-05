@@ -109,7 +109,7 @@ export const navSpecPublicPath = ${JSON.stringify(publicPath)} as const;
 
 export function routeForNavSpecNode(id: NavSpecNodeId): Href {
   if (id === navSpecRootId) return navSpecPublicPath as Href;
-  return \`${publicPath === "/" ? "" : publicPath}/\${id}\` as Href;
+  return \`${publicPath === "/" ? "" : "\${navSpecPublicPath}"}/\${id}\` as Href;
 }
 `;
 }
@@ -185,8 +185,9 @@ export function NavSpecScreen({ nodeId }: { readonly nodeId: string }) {
   const node = navSpecNodes[nodeId];
   const title = integration.label(node.id, node.displayName);
   const PageComponent =
-    node.type === "page"
-      ? integration.pageComponents?.[node.id as NavSpecPageId]
+    node.type === "page" && integration.pageComponents &&
+    Object.prototype.hasOwnProperty.call(integration.pageComponents, node.id)
+      ? integration.pageComponents[node.id as NavSpecPageId]
       : undefined;
 
   return (

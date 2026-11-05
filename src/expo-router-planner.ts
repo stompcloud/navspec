@@ -1,3 +1,4 @@
+import { normalizeExpoPublicPath } from "./expo-public-path.js";
 import type { Diagnostic, NavigationIR } from "./types.js";
 
 export interface ExpoRoute {
@@ -22,15 +23,16 @@ export function planExpoRoutes(
   publicPath: string,
 ): ExpoRoutePlan {
   const diagnostics: Diagnostic[] = [];
-  const normalized =
-    publicPath === "/" ? publicPath : publicPath.replace(/\/$/u, "");
-  if (!normalized.startsWith("/")) {
+  const normalized = normalizeExpoPublicPath(publicPath);
+  if (normalized === undefined) {
     diagnostics.push({
       code: "EXPO001",
       severity: "error",
-      message: `Expo Router public path "${publicPath}" must start with "/".`,
+      message: `Expo Router public path "${publicPath}" must be an absolute URL path containing only static kebab-case segments.`,
     });
   }
+  if (normalized === undefined)
+    return { publicPath, rootNodeId: ir.root, routes: [], diagnostics };
   const routes = ir.nodes.map((node) => ({
     nodeId: node.id,
     path: node.id === ir.root ? normalized : joinRoute(normalized, node.id),
