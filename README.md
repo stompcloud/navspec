@@ -117,7 +117,7 @@ Source/config selection can read caller-specified filesystem paths. Compilation 
 
 ## CLI
 
-Build the package, then run:
+Build the package then run:
 
 ```bash
 node dist/cli.js validate
