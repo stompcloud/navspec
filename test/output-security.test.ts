@@ -89,7 +89,7 @@ describe("output security", () => {
       const project = join(root, "project");
       mkdirSync(project);
       const outside = join(root, "outside");
-      materializeGeneratedArtifacts(outside, artifacts);
+      materializeGeneratedArtifacts(outside, artifacts, root);
       const path =
         kind === "backslash" ? outside.replaceAll("/", "\\") : `./${outside}`;
       writeFileSync(join(project, "nav.yaml"), "root:\n");
@@ -112,7 +112,7 @@ describe("output security", () => {
     const project = join(root, "project");
     mkdirSync(project);
     const outside = join(root, "outside");
-    materializeGeneratedArtifacts(outside, artifacts);
+    materializeGeneratedArtifacts(outside, artifacts, root);
     symlinkSync(root, join(project, "link"));
     expect(() =>
       materializeGeneratedArtifacts(
@@ -139,14 +139,14 @@ describe("output security", () => {
     const manifest = join(root, "manifest.json");
     writeFileSync(manifest, artifacts[1]!.contents);
     symlinkSync(manifest, join(output, "manifest.json"));
-    expect(() => materializeGeneratedArtifacts(output, artifacts)).toThrow(
-      /symbolic link/,
-    );
+    expect(() =>
+      materializeGeneratedArtifacts(output, artifacts, root),
+    ).toThrow(/symbolic link/);
     const dangling = join(root, "dangling");
     symlinkSync(join(root, "missing"), dangling);
-    expect(() => materializeGeneratedArtifacts(dangling, artifacts)).toThrow(
-      /symbolic link/,
-    );
+    expect(() =>
+      materializeGeneratedArtifacts(dangling, artifacts, root),
+    ).toThrow(/symbolic link/);
     expect(existsSync(join(root, "missing"))).toBe(false);
   });
   it.each(["parent", "dangling-file", "route-parent"])(
@@ -180,6 +180,17 @@ describe("output security", () => {
       ).toBe(false);
     },
   );
+  it("requires an explicit trusted base for destinations outside the working directory", () => {
+    const root = makeTempDirectory("navspec-security-");
+    const output = join(root, "out");
+    expect(() => materializeGeneratedArtifacts(output, artifacts)).toThrow(
+      /must stay below/,
+    );
+    expect(existsSync(output)).toBe(false);
+    materializeGeneratedArtifacts(output, artifacts, root);
+    expect(generatedArtifactsAreCurrent(output, artifacts, root)).toBe(true);
+  });
+
   it("rejects a destination outside an explicitly supplied base", () => {
     const root = makeTempDirectory("navspec-security-");
     const base = join(root, "base");

@@ -120,6 +120,7 @@ docs:
     materializeGeneratedArtifacts(
       join(root, config.generatedDirectory),
       generated.artifacts,
+      root,
     );
 
     expect(() =>

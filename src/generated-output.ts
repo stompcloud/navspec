@@ -130,7 +130,7 @@ function writeArtifacts(
 export function materializeGeneratedArtifacts(
   directory: string,
   artifacts: readonly GeneratedArtifact[],
-  baseDirectory = dirname(resolve(directory)),
+  baseDirectory = process.cwd(),
 ): void {
   assertSafeOutputPath(baseDirectory, directory);
   assertGeneratedManifest(artifacts);
@@ -167,7 +167,7 @@ export function materializeGeneratedArtifacts(
 export function generatedArtifactsAreCurrent(
   directory: string,
   artifacts: readonly GeneratedArtifact[],
-  baseDirectory = dirname(resolve(directory)),
+  baseDirectory = process.cwd(),
 ): boolean {
   assertSafeOutputPath(baseDirectory, directory);
   const expected = [...artifacts].sort((a, b) => a.path.localeCompare(b.path));

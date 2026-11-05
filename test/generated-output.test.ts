@@ -26,11 +26,11 @@ describe("generated output", () => {
   it("materializes and checks a complete generated tree", () => {
     const root = makeTempDirectory("navspec-output-");
     const output = join(root, "generated");
-    materializeGeneratedArtifacts(output, artifacts);
-    expect(generatedArtifactsAreCurrent(output, artifacts)).toBe(true);
+    materializeGeneratedArtifacts(output, artifacts, root);
+    expect(generatedArtifactsAreCurrent(output, artifacts, root)).toBe(true);
     writeFileSync(join(output, "index.ts"), "stale\n");
-    expect(generatedArtifactsAreCurrent(output, artifacts)).toBe(false);
-    materializeGeneratedArtifacts(output, artifacts);
+    expect(generatedArtifactsAreCurrent(output, artifacts, root)).toBe(false);
+    materializeGeneratedArtifacts(output, artifacts, root);
     expect(readFileSync(join(output, "index.ts"), "utf8")).toBe("export {};\n");
   });
 
@@ -39,28 +39,32 @@ describe("generated output", () => {
     const output = join(root, "generated");
     mkdirSync(output);
     writeFileSync(join(output, "user.ts"), "keep me\n");
-    expect(() => materializeGeneratedArtifacts(output, artifacts)).toThrow(
-      /unowned/u,
-    );
+    expect(() =>
+      materializeGeneratedArtifacts(output, artifacts, root),
+    ).toThrow(/unowned/u);
     expect(readFileSync(join(output, "user.ts"), "utf8")).toBe("keep me\n");
   });
 
   it("preserves output when staging fails and refuses unmanifested files", () => {
     const root = makeTempDirectory("navspec-output-");
     const output = join(root, "generated");
-    materializeGeneratedArtifacts(output, artifacts);
+    materializeGeneratedArtifacts(output, artifacts, root);
     expect(() =>
-      materializeGeneratedArtifacts(output, [
-        ...artifacts,
-        { path: "../escape.ts", contents: "bad\n", ownership: "generated" },
-      ]),
+      materializeGeneratedArtifacts(
+        output,
+        [
+          ...artifacts,
+          { path: "../escape.ts", contents: "bad\n", ownership: "generated" },
+        ],
+        root,
+      ),
     ).toThrow(/safe relative path/u);
     expect(readFileSync(join(output, "index.ts"), "utf8")).toBe("export {};\n");
 
     writeFileSync(join(output, "user.ts"), "keep\n");
-    expect(() => materializeGeneratedArtifacts(output, artifacts)).toThrow(
-      /not proven/u,
-    );
+    expect(() =>
+      materializeGeneratedArtifacts(output, artifacts, root),
+    ).toThrow(/not proven/u);
     expect(readFileSync(join(output, "user.ts"), "utf8")).toBe("keep\n");
   });
 });
