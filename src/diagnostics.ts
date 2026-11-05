@@ -32,29 +32,53 @@ function markerLength(span: SourceSpan, lineText: string): number {
   return Math.max(1, span.end.column - span.start.column);
 }
 
+// Keep structural newlines in the renderer; user-controlled fields are single-line
+// escaped text, including C1 terminal controls and Unicode bidi overrides.
+export function escapeTerminalText(value: string): string {
+  return value.replace(
+    /[\u0000-\u001f\u007f-\u009f\u200e-\u200f\u2028-\u202e\u2066-\u2069]/gu,
+    (character) => {
+      if (character === "\n") return "\\n";
+      if (character === "\r") return "\\r";
+      if (character === "\t") return "\\t";
+      return `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`;
+    },
+  );
+}
+
 export function formatDiagnostic(
   diagnostic: Diagnostic,
   source?: string,
 ): string {
-  const severity = diagnostic.severity.toUpperCase();
+  const severity = escapeTerminalText(diagnostic.severity.toUpperCase());
+  const code = escapeTerminalText(diagnostic.code);
+  const message = escapeTerminalText(diagnostic.message);
+  const hint = diagnostic.hint
+    ? escapeTerminalText(diagnostic.hint)
+    : undefined;
   if (!diagnostic.span) {
-    return `${severity} ${diagnostic.code}: ${diagnostic.message}${diagnostic.hint ? `\nHint: ${diagnostic.hint}` : ""}`;
+    return `${severity} ${code}: ${message}${hint ? `\nHint: ${hint}` : ""}`;
   }
 
   const { span } = diagnostic;
-  const header = `${span.sourcePath}:${span.start.line}:${span.start.column} ${severity} ${diagnostic.code}: ${diagnostic.message}`;
+  const header = `${escapeTerminalText(span.sourcePath)}:${span.start.line}:${span.start.column} ${severity} ${code}: ${message}`;
   if (source === undefined) {
-    return `${header}${diagnostic.hint ? `\nHint: ${diagnostic.hint}` : ""}`;
+    return `${header}${hint ? `\nHint: ${hint}` : ""}`;
   }
 
   const lineText = source.split(/\r?\n/u)[span.start.line - 1] ?? "";
   const gutter = String(span.start.line);
-  const pointer = `${" ".repeat(gutter.length)} | ${" ".repeat(Math.max(0, span.start.column - 1))}${"^".repeat(markerLength(span, lineText))}`;
+  const column = Math.max(0, span.start.column - 1);
+  const prefix = escapeTerminalText(lineText.slice(0, column));
+  const marked = escapeTerminalText(
+    lineText.slice(column, column + markerLength(span, lineText)),
+  );
+  const pointer = `${" ".repeat(gutter.length)} | ${" ".repeat(prefix.length)}${"^".repeat(Math.max(1, marked.length))}`;
   return [
     header,
     "",
-    `${gutter} | ${lineText}`,
+    `${gutter} | ${escapeTerminalText(lineText)}`,
     pointer,
-    ...(diagnostic.hint ? ["", `Hint: ${diagnostic.hint}`] : []),
+    ...(hint ? ["", `Hint: ${hint}`] : []),
   ].join("\n");
 }
