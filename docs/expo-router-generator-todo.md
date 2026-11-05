@@ -214,6 +214,7 @@ custom navigation code is deferred.
 - [x] Keep output, diagnostics, exit codes, and manifest hashes deterministic.
 - [x] Reject symlinked output/scaffold paths and preflight initialization before writes.
 - [x] Reject generated output overlapping the integration scaffold before initialization writes; cover init-first and generate-first workflows.
+- [x] Resolve existing trusted project/configuration bases with `realpath` before planning initialization; cover aliased bases, explicit/inferred routes, and below-base symlink rejection without weakening ASCII collision checks.
 - [x] Share diagnostic and JSON control escaping, including every Unicode bidi control, while preserving JSON values.
 - [x] Add CLI integration tests for success, warnings-as-errors, conflicts,
       check mode, stale output, and rollback after failure.

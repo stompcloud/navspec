@@ -3,6 +3,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -89,7 +90,7 @@ function inspectAppConfig(projectDirectory: string): string[] {
 export function inspectExpoProject(
   projectDirectory: string,
 ): ExpoProjectInspection {
-  const project = resolve(projectDirectory);
+  const project = realpathSync(resolve(projectDirectory));
   const packagePath = join(project, "package.json");
   if (!existsSync(packagePath))
     throw new Error(`No package.json found in "${project}".`);
@@ -249,7 +250,7 @@ export function initializeExpoRouterProject(
   configBaseDirectory = projectDirectory,
 ): ExpoInitializationResult {
   const inspection = inspectExpoProject(projectDirectory);
-  const configBase = resolve(configBaseDirectory);
+  const configBase = realpathSync(resolve(configBaseDirectory));
   const mount = normalizeExpoPublicPath(config.publicPath);
   if (mount === undefined || mount === "/") {
     throw new Error(
