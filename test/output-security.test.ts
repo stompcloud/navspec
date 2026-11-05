@@ -35,8 +35,8 @@ function config(path: string) {
     outputs: { "expo-router": { generatedDirectory: path } },
   });
 }
-function expo(root: string) {
-  mkdirSync(join(root, "src", "app"), { recursive: true });
+function expo(root: string, routeRoot = "src/app") {
+  mkdirSync(join(root, routeRoot), { recursive: true });
   writeFileSync(
     join(root, "package.json"),
     JSON.stringify({
@@ -52,6 +52,96 @@ function expo(root: string) {
 }
 
 describe("output security", () => {
+  it.each(["init-first", "generate-first"])(
+    "rejects integration overlap without scaffold writes (%s)",
+    (order) => {
+      const root = makeTempDirectory("navspec-security-");
+      expo(root);
+      writeFileSync(join(root, "nav.yaml"), "root:\n");
+      writeFileSync(join(root, "navspec.config.yaml"), config("src/navspec"));
+      const run = (command: string) =>
+        spawnSync(process.execPath, [cli, command], {
+          cwd: root,
+          encoding: "utf8",
+          timeout: 10000,
+        });
+      if (order === "generate-first") expect(run("generate").status).toBe(0);
+      const result = run("init");
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/integration scaffold must not overlap/u);
+      expect(existsSync(join(root, "src", "app", "navspec"))).toBe(false);
+      expect(existsSync(join(root, "src", "navspec", "integration.ts"))).toBe(
+        false,
+      );
+      if (order === "init-first") expect(run("generate").status).toBe(0);
+      expect(run("check").status).toBe(0);
+    },
+  );
+
+  it.each([
+    "src/navspec",
+    "src/NAVSPEC",
+    "src/navspec/integration.ts",
+    "src/navspec/integration.ts/generated",
+  ])(
+    "rejects integration collision at %s before writing routes",
+    (generatedDirectory) => {
+      const root = makeTempDirectory("navspec-security-");
+      expo(root);
+      expect(() =>
+        initializeExpoRouterProject(root, {
+          generatedDirectory,
+          publicPath: "/settings",
+        }),
+      ).toThrow(/integration scaffold must not overlap/u);
+      expect(readdirSync(join(root, "src", "app"))).toEqual([]);
+      expect(existsSync(join(root, "src", "navspec"))).toBe(false);
+    },
+  );
+
+  it.each(["src/app/SETTINGS", "src/APP", "src/app/SETTINGS/generated"])(
+    "rejects portable route collision at %s with inferred routes",
+    (generatedDirectory) => {
+      const root = makeTempDirectory("navspec-security-");
+      expo(root);
+      expect(() =>
+        initializeExpoRouterProject(root, {
+          generatedDirectory,
+          publicPath: "/settings",
+        }),
+      ).toThrow(/route scaffolds must not overlap/u);
+      expect(readdirSync(join(root, "src", "app"))).toEqual([]);
+      expect(existsSync(join(root, "src", "navspec"))).toBe(false);
+    },
+  );
+
+  it("protects the integration scaffold for a top-level app route root", () => {
+    const root = makeTempDirectory("navspec-security-");
+    expo(root, "app");
+    expect(() =>
+      initializeExpoRouterProject(root, {
+        generatedDirectory: "NAVSPEC",
+        publicPath: "/settings",
+      }),
+    ).toThrow(/integration scaffold must not overlap/u);
+    expect(readdirSync(join(root, "app"))).toEqual([]);
+    expect(existsSync(join(root, "navspec"))).toBe(false);
+  });
+
+  it("accepts mixed-case output and component-prefix siblings without changing spelling", () => {
+    const root = makeTempDirectory("navspec-security-");
+    expo(root);
+    const initialized = initializeExpoRouterProject(root, {
+      generatedDirectory: "src/app/Settings-old",
+      publicPath: "/settings",
+    });
+    expect(initialized.created).toHaveLength(4);
+    expect(
+      readFileSync(join(initialized.routesDirectory, "index.tsx"), "utf8"),
+    ).toContain("../Settings-old");
+    expect(existsSync(join(root, "src", "app", "Settings-old"))).toBe(false);
+  });
+
   it.each([
     "\\outside",
     "\\\\server\\share",

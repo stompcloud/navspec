@@ -29,9 +29,10 @@ describe("CLI", () => {
   it.each(["inspect", "test-plan"])(
     "escapes controls in %s JSON while preserving data",
     (command) => {
-      const url = "https://example.com/\u009b2J";
+      const url =
+        "https://example.com/\u009b2J\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\u0000\u001f\t\r\nmarker";
       const cwd = project({
-        "nav.yaml": `root:\n  items: [docs]\ndocs:\n  type: external-link\n  url: ${url}\n`,
+        "nav.yaml": `root:\n  items: [docs]\ndocs:\n  type: external-link\n  url: ${JSON.stringify(url)}\n`,
       });
       const result = spawnSync(process.execPath, [cli, command], {
         cwd,
@@ -39,6 +40,10 @@ describe("CLI", () => {
       });
       expect(result.status).toBe(0);
       expect(result.stdout).not.toContain("\u009b");
+      expect(result.stdout).not.toMatch(/\p{Bidi_Control}/u);
+      expect(result.stdout).not.toMatch(/[\u0000-\u0009\u000b-\u001f]/u);
+      expect(result.stdout).toContain("\\u061c");
+      expect(result.stdout).toContain("{\n");
       const parsed = JSON.parse(result.stdout);
       expect(
         command === "inspect"
@@ -47,6 +52,19 @@ describe("CLI", () => {
       ).toBe(url);
     },
   );
+
+  it("escapes U+061C in decoded reference diagnostics", () => {
+    const cwd = project({
+      "nav.yaml": 'root:\n  items: ["\\u061cmissing"]\n',
+    });
+    const result = spawnSync(process.execPath, [cli, "validate"], {
+      cwd,
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).not.toMatch(/\p{Bidi_Control}/u);
+    expect(result.stderr).toContain('references unknown node "\\u061cmissing"');
+  });
 
   it.each([
     ["unknown\x1b[2J"],

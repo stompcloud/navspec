@@ -5,10 +5,14 @@ import {
   readdirSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { normalizeExpoPublicPath } from "./expo-public-path.js";
-import { assertSafeOutputPath, normalizeOutputPath } from "./output-path.js";
+import {
+  assertSafeOutputPath,
+  normalizeOutputPath,
+  outputPathsOverlap,
+} from "./output-path.js";
 import type { ExpoRouterOutputConfig } from "./types.js";
 
 export interface ExpoProjectInspection {
@@ -206,12 +210,13 @@ export default function NavSpecNodeRoute() {
 }
 
 function integrationScaffold(generatedSpecifier: string): string {
-  return `import type { NavSpecIntegration } from ${JSON.stringify(generatedSpecifier)};
+  return `import { defineNavSpecPageComponents } from ${JSON.stringify(generatedSpecifier)};
+import type { NavSpecIntegration } from ${JSON.stringify(generatedSpecifier)};
 
 export const navSpecIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
   message: (_id, fallback) => fallback,
-  pageComponents: {},
+  pageComponents: defineNavSpecPageComponents({}),
   invokeAction: (id) => {
     throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
   },
@@ -293,18 +298,13 @@ export function initializeExpoRouterProject(
       : inspection.projectDirectory;
   const integrationFile = join(sourceRoot, "navspec", "integration.ts");
   assertSafeOutputPath(inspection.projectDirectory, integrationFile);
-  const isWithin = (base: string, path: string): boolean => {
-    const suffix = relative(base, path);
-    return (
-      suffix === "" ||
-      (suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix))
-    );
-  };
-  if (
-    isWithin(generatedDirectory, routesDirectory) ||
-    isWithin(routesDirectory, generatedDirectory)
-  ) {
+  if (outputPathsOverlap(generatedDirectory, routesDirectory)) {
     throw new Error("Generated output and route scaffolds must not overlap.");
+  }
+  if (outputPathsOverlap(generatedDirectory, integrationFile)) {
+    throw new Error(
+      "Generated output and integration scaffold must not overlap.",
+    );
   }
   const scaffolds = routeScaffolds(
     routesDirectory,

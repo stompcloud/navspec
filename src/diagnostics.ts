@@ -33,16 +33,28 @@ function markerLength(span: SourceSpan, lineText: string): number {
 }
 
 // Keep structural newlines in the renderer; user-controlled fields are single-line
-// escaped text, including C1 terminal controls and Unicode bidi overrides.
+// escaped text, including C1 terminal controls and every Unicode bidi control.
+const terminalControls =
+  /[\u0000-\u001f\u007f-\u009f\u2028-\u2029\p{Bidi_Control}]/gu;
+
+function escapeTerminalCharacter(character: string): string {
+  if (character === "\n") return "\\n";
+  if (character === "\r") return "\\r";
+  if (character === "\t") return "\\t";
+  return `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`;
+}
+
 export function escapeTerminalText(value: string): string {
-  return value.replace(
-    /[\u0000-\u001f\u007f-\u009f\u200e-\u200f\u2028-\u202e\u2066-\u2069]/gu,
-    (character) => {
-      if (character === "\n") return "\\n";
-      if (character === "\r") return "\\r";
-      if (character === "\t") return "\\t";
-      return `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`;
-    },
+  return value.replace(terminalControls, escapeTerminalCharacter);
+}
+
+export function formatTerminalJson(value: unknown): string {
+  // JSON.stringify escapes controls inside strings. Only its structural LF
+  // characters stay raw; all other controls use the same policy as diagnostics.
+  return JSON.stringify(value, null, 2).replace(
+    terminalControls,
+    (character) =>
+      character === "\n" ? character : escapeTerminalCharacter(character),
   );
 }
 

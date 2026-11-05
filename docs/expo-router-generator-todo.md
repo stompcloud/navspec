@@ -60,6 +60,7 @@ custom navigation code is deferred.
   - route integration directory
   - public mount path
 - [x] Normalize output paths before checking containment; reject rooted and drive-relative forms.
+- [x] Apply a platform-independent ASCII case-insensitive collision rule to normalized output paths, with exact path components and preserved write spelling.
 - [x] Reject absolute paths, parent traversal, empty mount paths, and ambiguous
       configurations with deterministic diagnostics.
 - [x] Preserve the current `input` and `root` defaults and backwards
@@ -103,6 +104,7 @@ custom navigation code is deferred.
       syntax cannot pass snapshot assertions alone.
 - [x] Add determinism tests for complete artifact sets.
 - [ ] Add reviewed golden-file fixtures for representative generated projects.
+- [ ] Type-check complete generated projects whose graphs omit page or external-link nodes; handle runtime literal-type narrowing and navigation-test `expectedUrl` access for absent node kinds.
 
 ## Phase 4: Generated runtime behavior
 
@@ -127,6 +129,7 @@ custom navigation code is deferred.
 - [x] Keep the default UI small, usable, theme-aware, and replaceable without
       adding styling concepts to core IR.
 - [x] Use own-property component lookups and test the unregistered constructor page fallback.
+- [x] Keep explicit page registrations component-only with a typed own-key registry helper and positive/negative generated-project type checks.
 - [x] Allow application-owned React Native components to populate `page` nodes
       through a stable-ID component registry while preserving Stack titles,
       outgoing items, and the generated fallback UI.
@@ -210,6 +213,8 @@ custom navigation code is deferred.
       them.
 - [x] Keep output, diagnostics, exit codes, and manifest hashes deterministic.
 - [x] Reject symlinked output/scaffold paths and preflight initialization before writes.
+- [x] Reject generated output overlapping the integration scaffold before initialization writes; cover init-first and generate-first workflows.
+- [x] Share diagnostic and JSON control escaping, including every Unicode bidi control, while preserving JSON values.
 - [x] Add CLI integration tests for success, warnings-as-errors, conflicts,
       check mode, stale output, and rollback after failure.
 
@@ -262,6 +267,7 @@ custom navigation code is deferred.
       application-owned `headerShown: false` integration.
 - [x] Document unsupported existing-navigation cases and manual alternatives.
 - [x] Update the root README when the Expo target is usable.
+- [x] Document the portable collision rule and registry helper in README and the durable design constraints.
 
 ## Deferred beyond v0.1
 

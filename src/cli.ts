@@ -14,6 +14,7 @@ import {
 import {
   escapeTerminalText,
   formatDiagnostic,
+  formatTerminalJson,
   hasErrors,
 } from "./diagnostics.js";
 import { generateExpoRouter } from "./expo-router-generator.js";
@@ -144,15 +145,6 @@ function readProject(arguments_: CliArguments): {
     root: arguments_.root ?? config.root,
     configuration,
   };
-}
-
-function terminalJson(value: unknown): string {
-  // JSON already escapes C0 controls inside strings. Escape remaining terminal
-  // controls without changing the values recovered by JSON.parse.
-  return JSON.stringify(value, null, 2).replace(
-    /[\u007f-\u009f\u200e-\u200f\u2028-\u202e\u2066-\u2069]/gu,
-    escapeTerminalText,
-  );
 }
 
 function executeCli(argv: readonly string[]): number {
@@ -309,9 +301,11 @@ function executeCli(argv: readonly string[]): number {
   }
 
   if (arguments_.command === "inspect") {
-    process.stdout.write(`${terminalJson(result.ir)}\n`);
+    process.stdout.write(`${formatTerminalJson(result.ir)}\n`);
   } else if (arguments_.command === "test-plan") {
-    process.stdout.write(`${terminalJson(planNavigationTests(result.ir))}\n`);
+    process.stdout.write(
+      `${formatTerminalJson(planNavigationTests(result.ir))}\n`,
+    );
   } else {
     const nodeCount = result.ir.nodes.length;
     process.stdout.write(

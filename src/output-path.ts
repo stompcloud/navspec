@@ -19,6 +19,26 @@ export function normalizeOutputPath(value: string, property: string): string {
   return normalized.replace(/\/$/u, "");
 }
 
+// Portable collision policy only; never use case folding to authorize writes.
+// Fold ASCII explicitly so the rule is independent of locale and filesystem.
+export function outputPathsOverlap(left: string, right: string): boolean {
+  const segments = (value: string): string[] => {
+    const normalized = posix.normalize(value.replaceAll("\\", "/"));
+    if (normalized === ".") return [];
+    return normalized
+      .replace(/[A-Z]/gu, (letter) => letter.toLowerCase())
+      .replace(/\/$/u, "")
+      .split("/");
+  };
+  const leftSegments = segments(left);
+  const rightSegments = segments(right);
+  const sharedLength = Math.min(leftSegments.length, rightSegments.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (leftSegments[index] !== rightSegments[index]) return false;
+  }
+  return true;
+}
+
 // The caller supplies the trusted base. Symlinks in that base's own ancestry
 // (e.g. the system temp directory) are allowed; links below it are not.
 export function assertSafeOutputPath(

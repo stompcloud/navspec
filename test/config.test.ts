@@ -17,6 +17,49 @@ describe("parseConfig", () => {
     expect(() => parseConfig("root: []\n")).toThrow(/non-empty string/);
   });
 
+  it.each([
+    ["src/app/SETTINGS", "src/app/settings"],
+    ["src/APP", "src/app/settings"],
+    ["src/app/settings/generated", "SRC/APP/SETTINGS"],
+    [".//src/./app//SETTINGS/", "src/app/settings"],
+    ["src\\app\\SETTINGS", "src/app/settings"],
+  ])(
+    "rejects portable output overlap between %s and %s",
+    (generatedDirectory, routesDirectory) => {
+      expect(() =>
+        parseConfig(`outputs:
+  expo-router:
+    generatedDirectory: ${generatedDirectory}
+    routesDirectory: ${routesDirectory}
+    publicPath: /settings
+`),
+      ).toThrow(/must not overlap/u);
+    },
+  );
+
+  it("preserves mixed-case spelling when normalized directories do not overlap", () => {
+    expect(
+      parseConfig(`outputs:
+  expo-router:
+    generatedDirectory: .//src/Generated//expo/
+    routesDirectory: src/app/settings
+    publicPath: /settings
+`).outputs.expoRouter,
+    ).toEqual({
+      generatedDirectory: "src/Generated/expo",
+      routesDirectory: "src/app/settings",
+      publicPath: "/settings",
+    });
+    expect(() =>
+      parseConfig(`outputs:
+  expo-router:
+    generatedDirectory: src/app/settings-old
+    routesDirectory: src/app/settings
+    publicPath: /settings
+`),
+    ).not.toThrow();
+  });
+
   it("parses and validates Expo Router output configuration", () => {
     expect(
       parseConfig(`outputs:

@@ -103,6 +103,10 @@ when it exactly matches that public mount.
 
 Output directories must stay below the configuration directory. NavSpec normalizes separators and dot components, rejects parent traversal and rooted/drive-relative paths, and refuses symlinks below the output base or in generated output. Initialization also refuses symlinked scaffold locations. Review configuration and existing ownership manifests before generating; these guards assume a stable filesystem and do not sandbox a hostile process modifying it concurrently.
 
+Generated output must not overlap the route scaffold directory or the application-owned integration file. For example, `generatedDirectory: src/navspec` is invalid when initialization would create `src/navspec/integration.ts`.
+
+Collision checks use the same portability rule on every platform: after path normalization, complete path components are compared ignoring ASCII letter case. Equal paths and ancestor/descendant overlaps are rejected even on a case-sensitive filesystem. Thus `src/app/SETTINGS` conflicts with `src/app/settings`, but `src/app/settings-old` does not. Mixed-case paths such as `src/Generated/navspec` remain allowed when they do not collide; their spelling is preserved for file writes. This is a fixed collision policy, not a probe of the local disk, so a team gets the same case-collision checks on Linux and macOS. Non-ASCII characters are compared exactly; this rule does not model Unicode case folding or normalization aliases. Use ASCII path components for portable naming. The collision comparison is never used to authorize containment; the trusted-base and symlink guards remain separate.
+
 For TypeScript callers, `materializeGeneratedArtifacts(directory, artifacts, baseDirectory)` and `generatedArtifactsAreCurrent(directory, artifacts, baseDirectory)` default their trusted base to the current working directory. Supply an explicit trusted base when using another directory, such as a temporary project. The destination must be below that base. The base itself and its ancestry are trusted.
 
 Source/config selection can read caller-specified filesystem paths. Compilation has no general CPU/memory budget; applications accepting remote inputs should isolate and limit execution. CLI diagnostics escape terminal control characters, and JSON output preserves their values through Unicode escapes.
@@ -281,15 +285,16 @@ export default function AccountPage() {
 
 ```ts
 // src/navspec/integration.ts
+import { defineNavSpecPageComponents } from "../generated/navspec/expo";
 import type { NavSpecIntegration } from "../generated/navspec/expo";
 import AccountPage from "./pages/account-page";
 
 export const navSpecIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
   message: (_id, fallback) => fallback,
-  pageComponents: {
+  pageComponents: defineNavSpecPageComponents({
     account: AccountPage,
-  },
+  }),
   invokeAction: async (id) => {
     await actionHandlers[id]();
   },
@@ -300,6 +305,8 @@ The generated runtime retains the Stack title and renders any outgoing items
 declared for the page below the custom content. Without a registered component,
 the page uses the generated fallback UI. Components can live anywhere outside
 the Expo Router route directory; `src/navspec/pages` is only a convention.
+
+Use `defineNavSpecPageComponents` for empty registries too. The helper checks the supplied page IDs and component types, then copies own registrations into a registry without a prototype. A valid page ID such as `constructor` therefore uses fallback content unless explicitly registered with a React component. When updating an existing integration that uses a plain registry object, wrap it with this helper; regeneration does not overwrite the application-owned integration module.
 
 ### Existing navigation boundary
 

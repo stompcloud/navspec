@@ -239,13 +239,14 @@ export default function AccountPage() {
 }
 `;
 
-const integrationSource = `import type { NavSpecIntegration } from "../generated/navspec/expo";
+const integrationSource = `import { defineNavSpecPageComponents } from "../generated/navspec/expo";
+import type { NavSpecIntegration } from "../generated/navspec/expo";
 import AccountPage from "./pages/account-page";
 
 export const navSpecIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
   message: (_id, fallback) => fallback,
-  pageComponents: { account: AccountPage },
+  pageComponents: defineNavSpecPageComponents({ account: AccountPage }),
   invokeAction: (id) => {
     throw new Error(\`No NavSpec action handler is registered for "\${id}".\`);
   },

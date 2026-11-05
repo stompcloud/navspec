@@ -58,14 +58,15 @@ export interface NavSpecPageProps {
 
 export type NavSpecPageComponent = ComponentType<NavSpecPageProps>;
 
+export type NavSpecPageComponents = [NavSpecPageId] extends [never]
+  ? Readonly<Record<string, never>>
+  : Partial<Record<NavSpecPageId, NavSpecPageComponent>>;
+
 export interface NavSpecIntegration {
   readonly label: (id: NavSpecNodeId, fallback: string) => string;
   readonly message?: (id: "not-found", fallback: string) => string;
   readonly invokeAction: (id: NavSpecActionId) => void | Promise<void>;
-  // Ordinary objects inherit constructor; only own registrations are rendered.
-  readonly pageComponents?: {
-    [Id in NavSpecPageId]?: NavSpecPageComponent | (Id extends "constructor" ? Object["constructor"] : never);
-  };
+  readonly pageComponents?: NavSpecPageComponents;
 }
 `;
 }
@@ -138,7 +139,17 @@ import type {
   NavSpecNodeId,
   NavSpecPageId,
   NavSpecPageComponent,
+  NavSpecPageComponents,
 } from "./types";
+
+// Validate supplied keys without treating inherited Object.constructor as a registration.
+export function defineNavSpecPageComponents<const Components extends object>(
+  components: Components & {
+    [Id in keyof Components]: Id extends NavSpecPageId ? NavSpecPageComponent : never;
+  },
+): NavSpecPageComponents {
+  return Object.assign(Object.create(null) as NavSpecPageComponents, components);
+}
 
 const missingIntegration: NavSpecIntegration = {
   label: (_id, fallback) => fallback,
@@ -297,12 +308,13 @@ const styles = StyleSheet.create({
 function indexSource(): string {
   return `export { navSpecNodes, navSpecRootId } from "./model";
 export { routeForNavSpecNode, navSpecPublicPath } from "./routes";
-export { NavSpecProvider, NavSpecScreen } from "./runtime";
+export { defineNavSpecPageComponents, NavSpecProvider, NavSpecScreen } from "./runtime";
 export type {
   NavSpecActionId,
   NavSpecIntegration,
   NavSpecNodeId,
   NavSpecPageComponent,
+  NavSpecPageComponents,
   NavSpecPageId,
   NavSpecPageProps,
 } from "./types";

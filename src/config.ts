@@ -1,7 +1,7 @@
 import { isMap, isScalar, parseDocument } from "yaml";
 
 import { normalizeExpoPublicPath } from "./expo-public-path.js";
-import { normalizeOutputPath } from "./output-path.js";
+import { normalizeOutputPath, outputPathsOverlap } from "./output-path.js";
 
 import type {
   ExpoRouterOutputConfig,
@@ -111,9 +111,7 @@ function parseExpoRouterOutput(value: unknown): ExpoRouterOutputConfig {
   };
   if (
     routesDirectory !== undefined &&
-    (routesDirectory === generatedDirectory ||
-      routesDirectory.startsWith(`${generatedDirectory}/`) ||
-      generatedDirectory.startsWith(`${routesDirectory}/`))
+    outputPathsOverlap(routesDirectory, generatedDirectory)
   ) {
     throw new Error(
       "outputs.expo-router generatedDirectory and routesDirectory must not overlap.",

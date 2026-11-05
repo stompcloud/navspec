@@ -6,7 +6,8 @@ import { generateExpoRouter } from "../src/expo-router-generator.js";
 
 // Execute the emitted component with a minimal JSX renderer; no native platform
 // is needed to check whether the registry lookup uses an own property.
-function render(pageComponents: Record<string, unknown>) {
+function render(pageComponents: Record<string, unknown>, useHelper = false) {
+  let registry = pageComponents;
   const compiled = compileNavigation(
     "root:\n  items: [constructor]\nconstructor:\n",
   );
@@ -28,7 +29,12 @@ function render(pageComponents: Record<string, unknown>) {
     return null;
   };
   const context = {
-    exports: {} as { NavSpecScreen: (props: { nodeId: string }) => unknown },
+    exports: {} as {
+      NavSpecScreen: (props: { nodeId: string }) => unknown;
+      defineNavSpecPageComponents: (
+        components: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    },
     require(name: string): unknown {
       if (name === "react/jsx-runtime")
         return { jsx, jsxs: jsx, Fragment: "Fragment" };
@@ -37,7 +43,7 @@ function render(pageComponents: Record<string, unknown>) {
           createContext: () => null,
           useContext: () => ({
             label: (_id: string, fallback: string) => fallback,
-            pageComponents,
+            pageComponents: registry,
           }),
         };
       if (name === "expo-router") return { Stack: { Screen: "Screen" } };
@@ -58,6 +64,10 @@ function render(pageComponents: Record<string, unknown>) {
     },
   };
   runInNewContext(js, context, { timeout: 1000 });
+  if (useHelper) {
+    registry = context.exports.defineNavSpecPageComponents(pageComponents);
+    expect(Object.getPrototypeOf(registry)).toBeNull();
+  }
   context.exports.NavSpecScreen({ nodeId: "constructor" });
   return rendered;
 }
@@ -73,5 +83,21 @@ describe("generated page component lookup", () => {
     const rendered = render({ constructor: component });
     expect(rendered).toContain(component);
     expect(rendered).not.toContain("Text");
+  });
+  it("copies only own registrations into a null-prototype registry", () => {
+    const inheritedComponent = () => null;
+    const rendered = render(
+      Object.create({ constructor: inheritedComponent }) as Record<
+        string,
+        unknown
+      >,
+      true,
+    );
+    expect(rendered).not.toContain(inheritedComponent);
+    expect(rendered).toContain("Text");
+  });
+  it("preserves an explicitly registered constructor through the helper", () => {
+    const component = () => null;
+    expect(render({ constructor: component }, true)).toContain(component);
   });
 });

@@ -4,6 +4,46 @@ import { compileNavigation } from "../src/compiler.js";
 import { formatDiagnostic } from "../src/diagnostics.js";
 
 describe("formatDiagnostic", () => {
+  it.each([
+    "061c",
+    "200e",
+    "200f",
+    "202a",
+    "202b",
+    "202c",
+    "202d",
+    "202e",
+    "2066",
+    "2067",
+    "2068",
+    "2069",
+  ])(
+    "escapes bidi control U+%s in diagnostic fields and source frames",
+    (hex) => {
+      const control = String.fromCharCode(Number.parseInt(hex, 16));
+      const output = formatDiagnostic(
+        {
+          code: `NAV${control}003`,
+          severity: "error",
+          message: `bad${control}reference`,
+          hint: `hint${control}`,
+          span: {
+            sourcePath: `nav${control}.yaml`,
+            start: { offset: 1, line: 1, column: 2 },
+            end: { offset: 2, line: 1, column: 3 },
+          },
+        },
+        `a${control}b`,
+      );
+      expect(output).not.toMatch(/\p{Bidi_Control}/u);
+      expect(output).toContain(`nav\\u${hex}.yaml`);
+      expect(output).toContain(`NAV\\u${hex}003`);
+      expect(output).toContain(`bad\\u${hex}reference`);
+      expect(output).toContain(`hint\\u${hex}`);
+      expect(output).toContain(`1 | a\\u${hex}b\n  |  ^^^^^^`);
+    },
+  );
+
   it("escapes decoded terminal controls in malformed node references", () => {
     const source = 'root:\n  items: ["\\u001b[2Jmissing"]\n';
     const diagnostic = compileNavigation(source).diagnostics.find(
