@@ -19,6 +19,7 @@ describe("Expo Router target", () => {
     "/x`;/globalThis.injected=true;//",
     "/a\\b",
     "//host",
+    "//",
     "/a?x=1",
     "/a#fragment",
     "/a/../b",

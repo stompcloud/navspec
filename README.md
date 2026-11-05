@@ -99,6 +99,14 @@ mount `/navspec`. The one-time initializer derives the corresponding route
 directory from the active `src/app` or `app` root. Set `routesDirectory` only
 when it exactly matches that public mount.
 
+## Input and output safety
+
+Output directories must stay below the configuration directory. NavSpec normalizes separators and dot components, rejects parent traversal and rooted/drive-relative paths, and refuses symlinks below the output base or in generated output. Initialization also refuses symlinked scaffold locations. Review configuration and existing ownership manifests before generating; these guards assume a stable filesystem and do not sandbox a hostile process modifying it concurrently.
+
+For TypeScript callers, `materializeGeneratedArtifacts(directory, artifacts, baseDirectory)` and `generatedArtifactsAreCurrent(directory, artifacts, baseDirectory)` default their trusted base to the current working directory. Supply an explicit trusted base when using another directory, such as a temporary project. The destination must be below that base. The base itself and its ancestry are trusted.
+
+Source/config selection can read caller-specified filesystem paths. Compilation has no general CPU/memory budget; applications accepting remote inputs should isolate and limit execution. CLI diagnostics escape terminal control characters, and JSON output preserves their values through Unicode escapes.
+
 ## CLI
 
 Build the package, then run:

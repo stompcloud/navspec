@@ -1,6 +1,6 @@
 export function normalizeExpoPublicPath(value: string): string | undefined {
-  const normalized = value === "/" ? value : value.replace(/\/$/u, "");
-  if (normalized === "/") return normalized;
+  if (value === "/") return value;
+  const normalized = value.replace(/\/$/u, "");
   if (
     !normalized.startsWith("/") ||
     normalized

@@ -1112,3 +1112,12 @@ The generated runtime continues to own the Stack title, scrolling container,
 and any outgoing navigation items declared on the page. A missing registration
 uses the generated fallback UI. React component names and imports remain target
 integration details and must not enter YAML or canonical IR.
+
+
+## Untrusted input boundaries
+
+Configured output paths normalize separators and dot components before validation; rooted/drive-relative paths, parent traversal, and the base directory itself are rejected. Output paths must remain below their trusted base. CLI generation and checking use the configuration directory as that base. The exported materialization/checking APIs default to the working directory and accept an explicit third `baseDirectory` argument for other trusted roots. Symlinks below that base, at output destinations, and within existing generated trees are refused. System aliases in a trusted base's own ancestry are allowed. Initialization preflights route, integration, and generated locations before writing and creates new scaffold files exclusively. These checks assume the filesystem is not concurrently mutated by a hostile process; manifest ownership remains a deletion guard, not authentication.
+
+Target route prefixes are validated at the public planner/generator boundary as well as during configuration parsing. Emitted route code uses a JSON-quoted constant rather than placing user text directly inside executable template syntax. Component registries require own-property lookups, so valid IDs such as `constructor` cannot select inherited functions.
+
+Cycle discovery uses iterative DFS and preserves deterministic traversal and canonical cycle reporting without consuming the JavaScript call stack. This does not impose a general input-size or resource budget: callers offering compilation of untrusted inputs as a service must separately bound resources and source/config filesystem access. Human-readable diagnostics escape terminal controls and bidi overrides per field; source pointers account for the escaped widths. JSON CLI output escapes such characters without changing parsed values. Unexpected CLI failures return a controlled error rather than an uncaught stack trace.

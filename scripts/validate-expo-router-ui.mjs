@@ -159,6 +159,9 @@ const navigationSource = `root:
   items:
     - account
     - documentation
+    - constructor
+
+constructor:
 
 account:
   type: page
@@ -383,6 +386,16 @@ try {
   await expectOneVisible(
     page.getByTestId("navspec:node:account"),
     "Account screen after back navigation",
+  );
+  stage("Verifying an unregistered constructor page uses fallback content");
+  await page.goto(`${baseUrl}/navspec`, { waitUntil: "domcontentloaded" });
+  await page.getByTestId("navspec:edge:root->constructor").click();
+  await page.waitForURL(`${baseUrl}/navspec/constructor`);
+  const constructorPage = page.getByTestId("navspec:node:constructor");
+  await expectOneVisible(constructorPage, "Constructor fallback screen");
+  await expectOneVisible(
+    constructorPage.getByText("Constructor", { exact: true }),
+    "Constructor fallback content",
   );
   assert.deepEqual(
     runtimeErrors,

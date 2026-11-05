@@ -59,6 +59,7 @@ custom navigation code is deferred.
   - generated source directory
   - route integration directory
   - public mount path
+- [x] Normalize output paths before checking containment; reject rooted and drive-relative forms.
 - [x] Reject absolute paths, parent traversal, empty mount paths, and ambiguous
       configurations with deterministic diagnostics.
 - [x] Preserve the current `input` and `root` defaults and backwards
@@ -80,6 +81,7 @@ custom navigation code is deferred.
 - [x] Ensure shared destinations generate one route identity.
 - [x] Ensure cycles do not cause recursive generation or path enumeration.
 - [x] Keep route and artifact ordering deterministic.
+- [x] Validate public API route prefixes and keep user text out of executable template syntax.
 - [x] Add route-planner tests for root-only graphs, shared destinations, cycles,
       unreachable nodes, and escaped content.
 
@@ -124,6 +126,7 @@ custom navigation code is deferred.
       edge IDs.
 - [x] Keep the default UI small, usable, theme-aware, and replaceable without
       adding styling concepts to core IR.
+- [x] Use own-property component lookups and test the unregistered constructor page fallback.
 - [x] Allow application-owned React Native components to populate `page` nodes
       through a stable-ID component registry while preserving Stack titles,
       outgoing items, and the generated fallback UI.
@@ -206,6 +209,7 @@ custom navigation code is deferred.
 - [x] Remove stale files only when the previous manifest proves NavSpec owns
       them.
 - [x] Keep output, diagnostics, exit codes, and manifest hashes deterministic.
+- [x] Reject symlinked output/scaffold paths and preflight initialization before writes.
 - [x] Add CLI integration tests for success, warnings-as-errors, conflicts,
       check mode, stale output, and rollback after failure.
 
