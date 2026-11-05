@@ -14,6 +14,19 @@ describe("deriveDisplayName", () => {
 });
 
 describe("compileNavigation", () => {
+  it("compiles an 8000-node chain without using the JavaScript call stack", () => {
+    const count = 8000;
+    const source =
+      Array.from(
+        { length: count },
+        (_, index) =>
+          `${index === 0 ? "root" : `n-${index}`}:${index + 1 < count ? `\n  items: [n-${index + 1}]` : ""}`,
+      ).join("\n") + "\n";
+    const result = compileNavigation(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.nodes).toHaveLength(count);
+  });
+
   it("compiles constructor as a valid navigation destination", () => {
     const result = compileNavigation(
       "root:\n  items: [constructor]\nconstructor:\n",

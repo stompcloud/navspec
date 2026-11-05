@@ -50,28 +50,43 @@ export function findCycles(ir: NavigationIR): readonly (readonly string[])[] {
 
   const canonicalize = (cycle: readonly string[]): readonly string[] => {
     const body = cycle.slice(0, -1);
-    let best = body;
+    // A cycle contains distinct node IDs, so its smallest ID determines the
+    // lexicographically smallest rotation without building every rotation.
+    let first = 0;
     for (let index = 1; index < body.length; index += 1) {
-      const rotated = [...body.slice(index), ...body.slice(0, index)];
-      if (rotated.join("\0") < best.join("\0")) best = rotated;
+      if (body[index]! < body[first]!) first = index;
     }
+    const best = [...body.slice(first), ...body.slice(0, first)];
     return [...best, best[0] ?? ""];
   };
 
   const visit = (id: string): void => {
+    const frames = [{ id, next: 0 }];
     state.set(id, "visiting");
     stack.push(id);
-    for (const target of edges.get(id) ?? []) {
+    const positions = new Map<string, number>([[id, 0]]);
+    while (frames.length > 0) {
+      const frame = frames[frames.length - 1]!;
+      const targets = edges.get(frame.id) ?? [];
+      if (frame.next === targets.length) {
+        state.set(frame.id, "visited");
+        positions.delete(frame.id);
+        frames.pop();
+        stack.pop();
+        continue;
+      }
+      const target = targets[frame.next++]!;
       if (state.get(target) === "visiting") {
-        const start = stack.lastIndexOf(target);
+        const start = positions.get(target)!;
         const cycle = canonicalize([...stack.slice(start), target]);
         found.set(cycle.join("\0"), cycle);
       } else if (state.get(target) === undefined && edges.has(target)) {
-        visit(target);
+        state.set(target, "visiting");
+        positions.set(target, stack.length);
+        stack.push(target);
+        frames.push({ id: target, next: 0 });
       }
     }
-    stack.pop();
-    state.set(id, "visited");
   };
 
   for (const node of ir.nodes) {

@@ -44,6 +44,18 @@ describe("graph utilities", () => {
     ]);
   });
 
+  it("detects and canonicalizes a deep cycle without recursion", () => {
+    const count = 10000;
+    const edges = Object.fromEntries(
+      Array.from({ length: count }, (_, i) => [
+        `n-${String(i).padStart(5, "0")}`,
+        [`n-${String((i + 1) % count).padStart(5, "0")}`],
+      ]),
+    );
+    const graph = ir(edges);
+    expect(findCycles(graph)).toEqual([[...Object.keys(edges), "n-00000"]]);
+  });
+
   it("detects cycles without treating them as invalid", () => {
     const graph = ir({ root: ["a"], a: ["b"], b: ["a"], self: ["self"] });
     expect(findCycles(graph)).toEqual([
